@@ -1,9 +1,9 @@
 'use client';
 
 import { useState } from 'react';
-import { useParams } from 'next/navigation';
+import { useParams, useRouter } from 'next/navigation';
+import Link from 'next/link';
 import Navbar from '../../../components/Navbar';
-import BookingModal from '../../../components/BookingModal';
 import ReviewSection from '../../../components/ReviewSection';
 import { salonDetails, reviews } from '../../../data/mockData';
 import { 
@@ -18,11 +18,11 @@ import { HeartIcon as HeartSolidIcon } from '@heroicons/react/24/solid';
 
 export default function SalonProfile() {
   const params = useParams();
+  const router = useRouter();
   const salonId = parseInt(params.id);
   const salon = salonDetails[salonId];
   const salonReviews = reviews.filter(review => review.salonId === salonId);
   
-  const [isBookingOpen, setIsBookingOpen] = useState(false);
   const [isFavorited, setIsFavorited] = useState(false);
   const [selectedImageIndex, setSelectedImageIndex] = useState(0);
 
@@ -109,12 +109,12 @@ export default function SalonProfile() {
                     </div>
                   </div>
                 </div>
-                <button
-                  onClick={() => setIsBookingOpen(true)}
-                  className="px-6 py-3 bg-teal-600 text-white rounded-lg hover:bg-teal-700 transition-colors font-medium"
+                <Link
+                  href={`/salon/${salonId}/book`}
+                  className="px-6 py-3 bg-teal-600 text-white rounded-lg hover:bg-teal-700 transition-colors font-medium inline-block text-center"
                 >
                   Book Appointment
-                </button>
+                </Link>
               </div>
               
               <p className="text-gray-700 leading-relaxed">{salon.description}</p>
@@ -142,12 +142,12 @@ export default function SalonProfile() {
                       <span className="text-lg font-bold text-teal-600">₹{service.price}</span>
                     </div>
                     <p className="text-sm text-gray-600 mb-3">{service.duration}</p>
-                    <button
-                      onClick={() => setIsBookingOpen(true)}
-                      className="w-full py-2 border border-teal-600 text-teal-600 rounded-lg hover:bg-teal-50 transition-colors"
+                    <Link
+                      href={`/salon/${salonId}/book?service=${service.id}`}
+                      className="w-full py-2 border border-teal-600 text-teal-600 rounded-lg hover:bg-teal-50 transition-colors inline-block text-center"
                     >
                       Book Now
-                    </button>
+                    </Link>
                   </div>
                 ))}
               </div>
@@ -173,12 +173,12 @@ export default function SalonProfile() {
                       <StarIcon className="h-4 w-4 text-yellow-400 mr-1" />
                       <span className="text-sm">{staff.rating}</span>
                     </div>
-                    <button
-                      onClick={() => setIsBookingOpen(true)}
-                      className="mt-3 px-4 py-2 text-sm border border-teal-600 text-teal-600 rounded-lg hover:bg-teal-50 transition-colors"
+                    <Link
+                      href={`/salon/${salonId}/book?staff=${staff.id}`}
+                      className="mt-3 px-4 py-2 text-sm border border-teal-600 text-teal-600 rounded-lg hover:bg-teal-50 transition-colors inline-block text-center"
                     >
                       Book with {staff.name.split(' ')[0]}
-                    </button>
+                    </Link>
                   </div>
                 ))}
               </div>
@@ -250,12 +250,7 @@ export default function SalonProfile() {
         </div>
       </div>
 
-      {/* Booking Modal */}
-      <BookingModal 
-        isOpen={isBookingOpen}
-        onClose={() => setIsBookingOpen(false)}
-        salon={salon}
-      />
+
     </div>
   );
 }

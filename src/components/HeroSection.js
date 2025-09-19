@@ -1,21 +1,49 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import { MagnifyingGlassIcon, MapPinIcon, SparklesIcon } from '@heroicons/react/24/outline';
+import { getUserLocation, setUserLocation } from '@/utils/searchUtils';
 
 export default function HeroSection() {
+  const router = useRouter();
   const [location, setLocation] = useState('');
-  const [service, setService] = useState('');
+  const [searchQuery, setSearchQuery] = useState('');
   const [isSearching, setIsSearching] = useState(false);
 
+  useEffect(() => {
+    // Load saved location on component mount
+    const savedLocation = getUserLocation();
+    if (savedLocation && savedLocation !== 'Current Location') {
+      setLocation(savedLocation);
+    }
+  }, []);
 
-
-  const handleSearch = () => {
+  const handleSearch = (queryOverride = null) => {
+    const searchTerm = queryOverride || searchQuery.trim();
+    if (!searchTerm) return;
+    
     setIsSearching(true);
-    // Handle search functionality
-    console.log('Searching for:', { location, service });
-    // Simulate search
-    setTimeout(() => setIsSearching(false), 1500);
+    
+    // Save location if provided
+    if (location.trim()) {
+      setUserLocation(location.trim());
+    }
+    
+    // Navigate to search page with parameters
+    const params = new URLSearchParams();
+    params.set('q', searchTerm);
+    if (location.trim()) {
+      params.set('location', location.trim());
+    }
+    
+    router.push(`/search?${params.toString()}`);
+  };
+
+  const handleKeyPress = (e) => {
+    if (e.key === 'Enter') {
+      handleSearch();
+    }
   };
 
 
@@ -66,34 +94,36 @@ export default function HeroSection() {
               <div className="grid grid-cols-1 md:grid-cols-12 gap-3 md:gap-4">
                 
                 {/* Location Input */}
-                <div className="md:col-span-5">
+                <div className="md:col-span-4">
                   <label className="block text-xs font-semibold mb-2 text-gray-600 uppercase tracking-wide">
-                    📍 Location
+                    📍 Near You
                   </label>
                   <div className="relative">
                     <MapPinIcon className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 z-10 text-gray-400" />
                     <input
                       type="text"
-                      placeholder="Enter your location"
+                      placeholder="Your location"
                       value={location}
                       onChange={(e) => setLocation(e.target.value)}
+                      onKeyPress={handleKeyPress}
                       className="w-full h-10 pl-10 pr-3 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent bg-gray-50 focus:bg-white transition-all"
                     />
                   </div>
                 </div>
 
-                {/* Service Input */}
-                <div className="md:col-span-5">
+                {/* Search Input */}
+                <div className="md:col-span-6">
                   <label className="block text-xs font-semibold mb-2 text-gray-600 uppercase tracking-wide">
-                    ✨ Service
+                    🔍 Search
                   </label>
                   <div className="relative">
                     <MagnifyingGlassIcon className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 z-10 text-gray-400" />
                     <input
                       type="text"
-                      placeholder="Search for services..."
-                      value={service}
-                      onChange={(e) => setService(e.target.value)}
+                      placeholder="Search salons or services..."
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                      onKeyPress={handleKeyPress}
                       className="w-full h-10 pl-10 pr-3 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent bg-gray-50 focus:bg-white transition-all"
                     />
                   </div>
@@ -103,7 +133,7 @@ export default function HeroSection() {
                 <div className="md:col-span-2 flex items-end">
                   <button
                     onClick={handleSearch}
-                    disabled={isSearching}
+                    disabled={isSearching || !searchQuery.trim()}
                     className="w-full h-10 bg-sky-500 text-white text-sm font-semibold rounded-lg hover:bg-sky-600 transition-all duration-300 shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 disabled:opacity-75 disabled:cursor-not-allowed disabled:transform-none"
                   >
                     {isSearching ? (
@@ -125,6 +155,38 @@ export default function HeroSection() {
             <div className="mt-4 text-sm text-sky-600 font-medium flex items-center justify-center gap-2">
               <div className="animate-spin rounded-full h-3 w-3 border-2 border-sky-500 border-t-transparent"></div>
               Searching for salons...
+            </div>
+          )}
+
+          {/* Popular Service Categories Pills - Bottom of Hero Section */}
+          {!isSearching && (
+            <div className="mt-8 mb-4">
+              <p className="text-xs font-medium text-gray-600 mb-3 uppercase tracking-wide">
+                Popular Services
+              </p>
+              <div className="flex justify-center items-center gap-2 overflow-x-auto scrollbar-hide">
+                {[
+                  { name: 'Hair Salon', icon: '💇‍♀️' },
+                  { name: 'Nail Salon', icon: '💅' },
+                  { name: 'Barber', icon: '✂️' },
+                  { name: 'Massage', icon: '💆‍♀️' },
+                  { name: 'Facial', icon: '✨' },
+                  { name: 'Spa', icon: '🧖‍♀️' },
+                ].map((service, index) => (
+                  <button
+                    key={index}
+                    onClick={() => {
+                      // Auto-fill the search bar and trigger search immediately
+                      setSearchQuery(service.name);
+                      handleSearch(service.name);
+                    }}
+                    className="flex-shrink-0 inline-flex items-center px-3 py-1.5 bg-white text-gray-700 text-xs font-medium rounded-full border border-gray-200 hover:border-sky-300 hover:bg-sky-50 hover:text-sky-700 transition-all duration-200 shadow-sm hover:shadow-md transform hover:-translate-y-0.5"
+                  >
+                    <span className="mr-1.5 text-xs">{service.icon}</span>
+                    {service.name}
+                  </button>
+                ))}
+              </div>
             </div>
           )}
 

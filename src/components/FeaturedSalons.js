@@ -1,8 +1,9 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
+import { ChevronLeftIcon, ChevronRightIcon, FunnelIcon, Bars3BottomLeftIcon } from '@heroicons/react/24/outline';
 import SalonCard from './SalonCard';
-import { FunnelIcon } from '@heroicons/react/24/outline';
+import { featuredSalons } from '@/data/mockData';
 
 export default function FeaturedSalons() {
   const [isVisible, setIsVisible] = useState(false);
@@ -20,118 +21,7 @@ export default function FeaturedSalons() {
     { value: 'price-high', label: 'Price: High to Low' }
   ];
 
-  // Extended featured salons data for horizontal scrolling
-  const featuredSalons = [
-    {
-      id: 1,
-      name: "Luxe Beauty Studio",
-      image: "/s1.jpeg",
-      rating: 4.9,
-      reviewCount: 156,
-      price: "$$$",
-      services: ["Hair", "Nails", "Facial"],
-      address: "123 Main St, Downtown",
-      distance: "0.5 miles",
-      isOpen: true,
-      nextAvailable: "Today 2:00 PM",
-      specialOffer: "20% off first visit"
-    },
-    {
-      id: 2,
-      name: "Serenity Spa & Salon",
-      image: "/s2.jpeg",
-      rating: 4.8,
-      reviewCount: 203,
-      price: "$$",
-      services: ["Massage", "Facial", "Hair"],
-      address: "456 Oak Ave, Midtown",
-      distance: "1.2 miles",
-      isOpen: true,
-      nextAvailable: "Tomorrow 10:00 AM"
-    },
-    {
-      id: 3,
-      name: "The Glam House",
-      image: "/s3.jpeg",
-      rating: 4.7,
-      reviewCount: 89,
-      price: "$$$",
-      services: ["Hair Color", "Extensions", "Styling"],
-      address: "789 Elm St, Uptown",
-      distance: "2.1 miles",
-      isOpen: false,
-      nextAvailable: "Tomorrow 9:00 AM",
-      closingTime: "Closes 6:00 PM"
-    },
-    {
-      id: 4,
-      name: "Bella Vista Salon",
-      image: "/s4.jpeg",
-      rating: 4.6,
-      reviewCount: 124,
-      price: "$$",
-      services: ["Cut & Style", "Color", "Treatments"],
-      address: "321 Maple Dr, Westside",
-      distance: "1.8 miles",
-      isOpen: true,
-      nextAvailable: "Today 4:30 PM"
-    },
-    {
-      id: 5,
-      name: "Elite Hair Studio",
-      image: "/api/placeholder/280/180",
-      rating: 4.8,
-      reviewCount: 92,
-      price: "$$$",
-      services: ["Hair", "Color", "Keratin"],
-      address: "567 Pine St, Eastside",
-      distance: "0.8 miles",
-      isOpen: true,
-      nextAvailable: "Today 3:15 PM",
-      specialOffer: "Free consultation"
-    },
-    {
-      id: 6,
-      name: "Zen Day Spa",
-      image: "/api/placeholder/280/180",
-      rating: 4.9,
-      reviewCount: 178,
-      price: "$$$$",
-      services: ["Spa", "Massage", "Facial"],
-      address: "890 Cedar Ave, Northside",
-      distance: "1.5 miles",
-      isOpen: true,
-      nextAvailable: "Today 5:00 PM"
-    },
-    {
-      id: 7,
-      name: "Modern Cuts",
-      image: "/api/placeholder/280/180",
-      rating: 4.5,
-      reviewCount: 67,
-      price: "$$",
-      services: ["Hair", "Beard", "Styling"],
-      address: "234 Birch St, Southside",
-      distance: "2.3 miles",
-      isOpen: true,
-      nextAvailable: "Tomorrow 11:00 AM",
-      specialOffer: "Student discount 15%"
-    },
-    {
-      id: 8,
-      name: "Glamour Lounge",
-      image: "/api/placeholder/280/180",
-      rating: 4.7,
-      reviewCount: 143,
-      price: "$$$",
-      services: ["Hair", "Makeup", "Nails"],
-      address: "345 Willow Dr, Central",
-      distance: "1.1 miles",
-      isOpen: false,
-      nextAvailable: "Tomorrow 8:30 AM",
-      closingTime: "Opens 8:00 AM"
-    }
-  ];
+  // Using centralized data from mockData.js
 
   return (
     <section className="py-6 bg-white">

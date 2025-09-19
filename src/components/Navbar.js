@@ -1,14 +1,20 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { UserIcon, Bars3Icon, XMarkIcon, MagnifyingGlassIcon, MapPinIcon } from '@heroicons/react/24/outline';
+import { getUserLocation, setUserLocation } from '@/utils/searchUtils';
 
 export default function Navbar({ showCompactSearch = false }) {
+  const router = useRouter();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [showScrollSearch, setShowScrollSearch] = useState(false);
   const [location, setLocation] = useState('');
-  const [service, setService] = useState('');
+  const [searchQuery, setSearchQuery] = useState('');
+
+  // Compute search disabled state
+  const searchDisabled = !searchQuery.trim();
 
   useEffect(() => {
     const handleScroll = () => {
@@ -17,9 +23,39 @@ export default function Navbar({ showCompactSearch = false }) {
       setShowScrollSearch(scrolled);
     };
 
+    // Load saved location
+    const savedLocation = getUserLocation();
+    if (savedLocation && savedLocation !== 'Current Location') {
+      setLocation(savedLocation);
+    }
+
     window.addEventListener('scroll', handleScroll);
     return () => window.removeEventListener('scroll', handleScroll);
   }, []);
+
+  const handleSearch = () => {
+    if (!searchQuery.trim()) return;
+    
+    // Save location if provided
+    if (location.trim()) {
+      setUserLocation(location.trim());
+    }
+    
+    // Navigate to search page with parameters
+    const params = new URLSearchParams();
+    params.set('q', searchQuery.trim());
+    if (location.trim()) {
+      params.set('location', location.trim());
+    }
+    
+    router.push(`/search?${params.toString()}`);
+  };
+
+  const handleKeyPress = (e) => {
+    if (e.key === 'Enter') {
+      handleSearch();
+    }
+  };
 
   return (
     <nav 
@@ -63,28 +99,34 @@ export default function Navbar({ showCompactSearch = false }) {
                     <MapPinIcon className="h-4 w-4 text-gray-400 flex-shrink-0" />
                     <input
                       type="text"
-                      placeholder="Location"
+                      placeholder="Near you"
                       value={location}
                       onChange={(e) => setLocation(e.target.value)}
+                      onKeyPress={handleKeyPress}
                       className="flex-1 ml-2 text-sm border-0 focus:ring-0 focus:outline-none text-gray-700 bg-transparent"
                     />
                   </div>
                   
-                  {/* Service Input */}
+                  {/* Search Input */}
                   <div className="flex-1 flex items-center px-3">
                     <MagnifyingGlassIcon className="h-4 w-4 text-gray-400 flex-shrink-0" />
                     <input
                       type="text"
-                      placeholder="Search services..."
-                      value={service}
-                      onChange={(e) => setService(e.target.value)}
+                      placeholder="Search salons or services..."
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                      onKeyPress={handleKeyPress}
                       className="flex-1 ml-2 text-sm border-0 focus:ring-0 focus:outline-none text-gray-700 bg-transparent"
                     />
                   </div>
                 </div>
                 
                 {/* Search Button - Separate with margin */}
-                <button className="ml-3 h-10 px-6 bg-sky-500 text-white text-sm font-medium rounded-xl hover:bg-sky-600 transition-all duration-300 shadow-sm hover:shadow-md transform hover:-translate-y-0.5">
+                <button 
+                  onClick={handleSearch}
+                  disabled={!searchQuery.trim()}
+                  className="ml-3 h-10 px-6 bg-sky-500 text-white text-sm font-medium rounded-xl hover:bg-sky-600 transition-all duration-300 shadow-sm hover:shadow-md transform hover:-translate-y-0.5 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none"
+                >
                   Search
                 </button>
               </div>
@@ -169,6 +211,7 @@ export default function Navbar({ showCompactSearch = false }) {
                     placeholder="Location"
                     value={location}
                     onChange={(e) => setLocation(e.target.value)}
+                    onKeyPress={handleKeyPress}
                     className="flex-1 ml-2 text-sm border-0 focus:ring-0 focus:outline-none text-gray-700 bg-transparent"
                   />
                 </div>
@@ -180,13 +223,22 @@ export default function Navbar({ showCompactSearch = false }) {
                   <MagnifyingGlassIcon className="h-4 w-4 text-gray-400 flex-shrink-0" />
                   <input
                     type="text"
-                    placeholder="Search services..."
-                    value={service}
-                    onChange={(e) => setService(e.target.value)}
+                    placeholder="Search salons, services..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    onKeyPress={handleKeyPress}
                     className="flex-1 ml-2 text-sm border-0 focus:ring-0 focus:outline-none text-gray-700 bg-transparent"
                   />
                 </div>
-                <button className="h-10 px-6 bg-sky-500 text-white text-sm font-medium rounded-lg hover:bg-sky-600 transition-all duration-200 shadow-sm hover:shadow-md">
+                <button 
+                  onClick={handleSearch}
+                  disabled={searchDisabled}
+                  className={`h-10 px-6 text-white text-sm font-medium rounded-lg transition-all duration-200 shadow-sm hover:shadow-md ${
+                    searchDisabled 
+                      ? 'bg-gray-400 cursor-not-allowed' 
+                      : 'bg-sky-500 hover:bg-sky-600'
+                  }`}
+                >
                   Search
                 </button>
               </div>
