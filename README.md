@@ -1,36 +1,94 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://github.com/vercel/next.js/tree/canary/packages/create-next-app).
+# 📱 BeautyBook - Customer Booking App
 
-## Getting Started
+A modern, production-ready booking platform for beauty services built with Next.js 15 and Supabase.
 
-First, run the development server:
+## ✨ Features
 
+- 🔍 **Smart Search** - Find salons by location, services, and availability
+- � **Complete Booking Flow** - Date, time, and staff selection
+- 🛡️ **Production Security** - Rate limiting, input validation, XSS protection
+- 📱 **Mobile Responsive** - Optimized for all devices
+- ⚡ **High Performance** - Image optimization, caching, lazy loading
+- 🔔 **Error Handling** - Comprehensive error states and user feedback
+- 📊 **Booking Management** - Status tracking and updates
+
+## 🚀 Quick Deployment
+
+### Deploy to Vercel (Recommended)
+
+1. **Connect Repository** to Vercel
+2. **Add Environment Variables**:
+   ```env
+   NEXT_PUBLIC_SUPABASE_URL=your_supabase_project_url
+   NEXT_PUBLIC_SUPABASE_ANON_KEY=your_supabase_anon_key
+   NEXT_PUBLIC_BASE_URL=https://your-app.vercel.app
+   ```
+3. **Deploy!** 🎉
+
+## 🛠️ Local Development
+
+### Prerequisites
+- Node.js 18+
+- Supabase account
+
+### Setup
 ```bash
+# Install dependencies  
+npm install
+
+# Create environment file
+# Add your Supabase credentials to .env.local
+NEXT_PUBLIC_SUPABASE_URL=your_supabase_url
+NEXT_PUBLIC_SUPABASE_ANON_KEY=your_supabase_anon_key
+NEXT_PUBLIC_BASE_URL=http://localhost:3000
+
+# Run development server
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Visit [http://localhost:3000](http://localhost:3000)
 
-You can start editing the page by modifying `app/page.js`. The page auto-updates as you edit the file.
+## 🏗️ Architecture
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+### Tech Stack
+- **Frontend**: Next.js 15, React 18, Tailwind CSS
+- **Backend**: Next.js API Routes
+- **Database**: Supabase (PostgreSQL)
+- **Storage**: Supabase Storage
+- **Deployment**: Vercel
 
-## Learn More
+### Security Features ✅
+- Rate limiting (10-100 req/min)
+- Input validation & sanitization  
+- XSS & CSRF protection
+- SQL injection prevention
+- Security headers (HSTS, CSP, etc.)
 
-To learn more about Next.js, take a look at the following resources:
+### Performance Features ✅
+- Image optimization with lazy loading
+- API response caching (5min TTL)
+- Bundle optimization
+- Performance monitoring
+- Web Vitals tracking
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## 📡 API Endpoints
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/api/shops` | GET | List salons with filters |
+| `/api/services` | GET | List services by shop |
+| `/api/availability` | GET | Check appointment slots |
+| `/api/bookings` | POST | Create new booking |
+| `/api/bookings` | PUT | Update booking status |
 
-## Deploy on Vercel
+## 🎯 Production Ready
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+This app includes:
+- ✅ Security middleware
+- ✅ Error boundaries & states
+- ✅ Loading animations
+- ✅ Input validation
+- ✅ Performance monitoring
+- ✅ SEO optimization
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+**🚀 Ready for production deployment!**

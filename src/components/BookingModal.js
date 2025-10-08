@@ -1,9 +1,8 @@
 'use client';
 
-import { useState, Fragment } from 'react';
+import { useState, Fragment, useEffect } from 'react';
 import { Dialog, Transition } from '@headlessui/react';
-import { XMarkIcon, CalendarIcon, ClockIcon, UserIcon } from '@heroicons/react/24/outline';
-import { StarIcon } from '@heroicons/react/24/solid';
+import { X, Calendar, Clock, User, Star } from 'lucide-react';
 
 export default function BookingModal({ isOpen, onClose, salon }) {
   const [step, setStep] = useState(1); // 1: Service, 2: Staff, 3: DateTime, 4: Details, 5: Confirmation
@@ -17,13 +16,118 @@ export default function BookingModal({ isOpen, onClose, salon }) {
     email: ''
   });
   const [isLoading, setIsLoading] = useState(false);
+  const [services, setServices] = useState([]);
+  const [staff, setStaff] = useState([]);
+  const [availableSlots, setAvailableSlots] = useState([]);
+  const [blockedSlots, setBlockedSlots] = useState([]);
+  const [availabilityLoading, setAvailabilityLoading] = useState(false);
+  const [error, setError] = useState(null);
 
-  const timeSlots = [
-    '10:00 AM', '10:30 AM', '11:00 AM', '11:30 AM',
-    '12:00 PM', '12:30 PM', '2:00 PM', '2:30 PM',
-    '3:00 PM', '3:30 PM', '4:00 PM', '4:30 PM',
-    '5:00 PM', '5:30 PM', '6:00 PM', '6:30 PM'
-  ];
+  // Fetch services when modal opens
+  useEffect(() => {
+    if (isOpen && salon?.id) {
+      fetchServices();
+    }
+  }, [isOpen, salon?.id]);
+
+  // Fetch staff when service is selected
+  useEffect(() => {
+    if (selectedService?.id && salon?.id) {
+      fetchStaff();
+    }
+  }, [selectedService?.id, salon?.id]);
+
+  // Set default date when reaching step 3
+  useEffect(() => {
+    if (step === 3 && !selectedDate) {
+      const today = new Date().toISOString().split('T')[0];
+      setSelectedDate(today);
+    }
+  }, [step, selectedDate]);
+
+  // Fetch availability when date/service/staff is selected
+  useEffect(() => {
+    if (selectedService?.id && selectedDate && salon?.id) {
+      fetchAvailability();
+    }
+  }, [selectedService?.id, selectedDate, selectedStaff?.id, salon?.id]);
+
+  const fetchServices = async () => {
+    try {
+      const response = await fetch(`/api/services?shop_id=${salon.id}`);
+      const result = await response.json();
+      if (result.success) {
+        setServices(result.data);
+      } else {
+        setError('Failed to load services');
+      }
+    } catch (error) {
+      if (process.env.NODE_ENV === 'development') {
+        console.error('Error fetching services:', error);
+      }
+      setError('Unable to load available services. Please try again.');
+    }
+  };
+
+  const fetchStaff = async () => {
+    try {
+      const response = await fetch(`/api/staff?shop_id=${salon.id}&service_id=${selectedService.id}`);
+      const result = await response.json();
+      if (result.success) {
+        setStaff(result.data);
+      } else {
+        setError('Failed to load staff');
+      }
+    } catch (error) {
+      if (process.env.NODE_ENV === 'development') {
+        console.error('Error fetching staff:', error);
+      }
+      setError('Unable to load available staff. Please try again.');
+    }
+  };
+
+  const fetchAvailability = async () => {
+    setAvailabilityLoading(true);
+    try {
+      const params = new URLSearchParams({
+        shop_id: salon.id,
+        service_id: selectedService.id,
+        date: selectedDate
+      });
+      
+      if (selectedStaff?.id) {
+        params.append('staff_id', selectedStaff.id);
+      }
+
+      const response = await fetch(`/api/availability?${params}`);
+      const result = await response.json();
+      
+      if (result.success) {
+        setAvailableSlots(result.data.availableSlots || []);
+        setBlockedSlots(result.data.blockedSlots || []);
+        
+        // Show helpful message if no available slots
+        if (!result.data.availableSlots?.length && result.data.blockedSlots?.length) {
+          setError('All time slots are booked. Red slots show existing bookings.');
+        } else if (!result.data.availableSlots?.length) {
+          setError('No time slots available for this date.');
+        } else {
+          setError(null); // Clear any previous errors
+        }
+      } else {
+        setError('Failed to load availability');
+        setAvailableSlots([]);
+        setBlockedSlots([]);
+      }
+    } catch (error) {
+      console.error('Error fetching availability:', error);
+      setError('Failed to load availability');
+      setAvailableSlots([]);
+      setBlockedSlots([]);
+    } finally {
+      setAvailabilityLoading(false);
+    }
+  };
 
   const handleNext = () => {
     setStep(step + 1);
@@ -35,31 +139,144 @@ export default function BookingModal({ isOpen, onClose, salon }) {
 
   const handleBooking = async () => {
     setIsLoading(true);
+    setError(null);
     
-    // Simulate API call
-    await new Promise(resolve => setTimeout(resolve, 2000));
-    
-    // Handle booking submission
-    console.log('Booking details:', {
-      salon,
-      service: selectedService,
-      staff: selectedStaff,
-      date: selectedDate,
-      time: selectedTime,
-      customer: customerDetails
-    });
-    
-    setIsLoading(false);
-    setStep(5);
+    try {
+      // Convert 12-hour time format to 24-hour for API
+      const time24 = convertTo24Hour(selectedTime);
+      
+      // 🔥 REAL-TIME VALIDATION: Double-check availability before booking
+      const availabilityParams = new URLSearchParams({
+        shop_id: salon.id,
+        service_id: selectedService.id,
+        date: selectedDate
+      });
+      
+      if (selectedStaff?.id) {
+        availabilityParams.append('staff_id', selectedStaff.id);
+      }
+      
+      const availabilityResponse = await fetch(`/api/availability?${availabilityParams}`);
+      const availabilityResult = await availabilityResponse.json();
+      
+      if (availabilityResult.success) {
+        const selectedSlotStillAvailable = availabilityResult.data.availableSlots?.some(slot => 
+          slot.time === time24.substring(0, 5) && // Match HH:MM format
+          (!selectedStaff?.id || slot.availableStaff.some(staff => staff.id === selectedStaff.id))
+        );
+        
+        if (!selectedSlotStillAvailable) {
+          setError(`Sorry, the ${selectedTime} time slot is no longer available${selectedStaff ? ` for ${selectedStaff.name}` : ''}. Please select a different time.`);
+          // Refresh available slots
+          fetchAvailability();
+          setIsLoading(false);
+          return;
+        }
+      }
+      
+      const bookingData = {
+        shop_id: salon.id,
+        service_id: selectedService.id,
+        staff_id: selectedStaff?.id || null,
+        customer_name: customerDetails.name,
+        customer_phone: customerDetails.phone,
+        customer_email: customerDetails.email || null,
+        booking_date: selectedDate,
+        booking_time: time24,
+        notes: customerDetails.notes || null
+      };
+
+      const response = await fetch('/api/bookings', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(bookingData),
+      });
+
+      const result = await response.json();
+
+      if (result.success) {
+        // Create automatic session for the customer
+        const sessionToken = `client_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+        const clientSession = {
+          token: sessionToken,
+          phone: customerDetails.phone,
+          email: customerDetails.email,
+          name: customerDetails.name,
+          createdAt: new Date().toISOString(),
+          bookings: [result.data.id], // Add this booking ID
+          isAutoCreated: true // Flag to indicate this was auto-created during booking
+        };
+        
+        // Only create session if one doesn't already exist
+        const existingSession = localStorage.getItem('clientSession');
+        if (!existingSession) {
+          localStorage.setItem('clientSession', JSON.stringify(clientSession));
+        } else {
+          // Update existing session with new booking
+          try {
+            const existing = JSON.parse(existingSession);
+            existing.bookings = [...(existing.bookings || []), result.data.id];
+            localStorage.setItem('clientSession', JSON.stringify(existing));
+          } catch (e) {
+            // If parsing fails, create new session
+            localStorage.setItem('clientSession', JSON.stringify(clientSession));
+          }
+        }
+        
+        setStep(5); // Move to confirmation step
+      } else {
+        // Enhanced error handling for different conflict types
+        if (response.status === 409) {
+          setError(`This time slot was just booked by someone else! Please choose a different time.`);
+          // Refresh available slots to show current availability
+          fetchAvailability();
+        } else {
+          setError(result.error || result.message || 'Failed to create booking');
+        }
+      }
+    } catch (error) {
+      console.error('Error creating booking:', error);
+      setError('Failed to create booking. Please try again.');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Helper function to convert 12-hour to 24-hour format
+  const convertTo24Hour = (time12h) => {
+    const [time, modifier] = time12h.split(' ');
+    let [hours, minutes] = time.split(':');
+    if (hours === '12') {
+      hours = '00';
+    }
+    if (modifier === 'PM') {
+      hours = parseInt(hours) + 12;
+    }
+    return `${String(hours).padStart(2, '0')}:${minutes}`;
+  };
+
+  // Helper function to convert 24-hour to 12-hour format
+  const convertTo12Hour = (time24h) => {
+    const [hours, minutes] = time24h.split(':');
+    const hour12 = parseInt(hours) % 12 || 12;
+    const modifier = parseInt(hours) >= 12 ? 'PM' : 'AM';
+    return `${hour12}:${minutes} ${modifier}`;
   };
 
   const resetModal = () => {
     setStep(1);
     setSelectedService(null);
     setSelectedStaff(null);
-    setSelectedDate('');
+    setSelectedDate(''); // Will be set to today when step 3 is reached
     setSelectedTime('');
-    setCustomerDetails({ name: '', phone: '', email: '' });
+    setCustomerDetails({ name: '', phone: '', email: '', notes: '' });
+    setServices([]);
+    setStaff([]);
+    setAvailableSlots([]);
+    setBlockedSlots([]);
+    setError(null);
   };
 
   const stepTitles = [
@@ -150,9 +367,33 @@ export default function BookingModal({ isOpen, onClose, salon }) {
                     className="p-2 rounded-lg transition-colors hover:bg-gray-100"
                     style={{ color: 'var(--foreground-muted)' }}
                   >
-                    <XMarkIcon className="h-6 w-6" />
+                    <X className="h-6 w-6" />
                   </button>
                 </div>
+
+                {/* Error Message */}
+                {error && (
+                  <div className="px-6 pt-4">
+                    <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+                      <div className="flex">
+                        <div className="flex-shrink-0">
+                          <span className="text-red-400">⚠️</span>
+                        </div>
+                        <div className="ml-3">
+                          <p className="text-sm text-red-800">{error}</p>
+                        </div>
+                        <div className="ml-auto pl-3">
+                          <button
+                            onClick={() => setError(null)}
+                            className="text-red-400 hover:text-red-600"
+                          >
+                            <X className="h-5 w-5" />
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
 
                 {/* Progress Steps */}
                 <div className="px-6 py-6" style={{ borderBottom: '1px solid var(--border-light)' }}>
@@ -168,44 +409,58 @@ export default function BookingModal({ isOpen, onClose, salon }) {
                         <p className="text-body">Choose from our professional beauty services</p>
                       </div>
                       <div className="grid gap-4 max-h-96 overflow-y-auto">
-                        {salon.services?.map((service) => (
-                          <div
-                            key={service.id}
-                            onClick={() => setSelectedService(service)}
-                            className={`card-interactive p-6 cursor-pointer transition-all ${
-                              selectedService?.id === service.id
-                                ? 'ring-2 ring-blue-500'
-                                : ''
-                            }`}
-                            style={{
-                              border: selectedService?.id === service.id 
-                                ? '2px solid var(--accent-primary)' 
-                                : '1px solid var(--border-light)',
-                              background: selectedService?.id === service.id 
-                                ? 'rgba(14, 165, 233, 0.05)' 
-                                : 'var(--background)'
-                            }}
-                          >
-                            <div className="flex justify-between items-start">
-                              <div className="flex-1">
-                                <h5 className="heading-sm mb-2">{service.name}</h5>
-                                <p className="text-body mb-2">{service.description}</p>
-                                <div className="flex items-center text-caption">
-                                  <ClockIcon className="h-4 w-4 mr-1" style={{ color: 'var(--foreground-muted)' }} />
-                                  {service.duration}
+                        {services.length === 0 ? (
+                          <div className="text-center py-8">
+                            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
+                            <p className="text-caption mt-2">Loading services...</p>
+                          </div>
+                        ) : (
+                          services.map((service) => (
+                            <div
+                              key={service.id}
+                              onClick={() => setSelectedService(service)}
+                              className={`card-interactive p-6 cursor-pointer transition-all ${
+                                selectedService?.id === service.id
+                                  ? 'ring-2 ring-blue-500'
+                                  : ''
+                              }`}
+                              style={{
+                                border: selectedService?.id === service.id 
+                                  ? '2px solid var(--accent-primary)' 
+                                  : '1px solid var(--border-light)',
+                                background: selectedService?.id === service.id 
+                                  ? 'rgba(14, 165, 233, 0.05)' 
+                                  : 'var(--background)'
+                              }}
+                            >
+                              <div className="flex justify-between items-start">
+                                <div className="flex-1">
+                                  <h5 className="heading-sm mb-2">{service.name}</h5>
+                                  <p className="text-body mb-2">{service.description || 'Professional service'}</p>
+                                  <div className="flex items-center text-caption">
+                                    <Clock className="h-4 w-4 mr-1" style={{ color: 'var(--foreground-muted)' }} />
+                                    {service.duration} minutes
+                                  </div>
+                                  {service.category && (
+                                    <div className="mt-2">
+                                      <span className="px-2 py-1 text-xs rounded-full bg-blue-100 text-blue-800">
+                                        {service.category}
+                                      </span>
+                                    </div>
+                                  )}
+                                </div>
+                                <div className="text-right ml-4">
+                                  <p className="text-xl font-bold" style={{ color: 'var(--accent-primary)' }}>₹{service.price}</p>
+                                  {selectedService?.id === service.id && (
+                                    <div className="mt-2">
+                                      <span className="status-info">✓ Selected</span>
+                                    </div>
+                                  )}
                                 </div>
                               </div>
-                              <div className="text-right ml-4">
-                                <p className="text-xl font-bold" style={{ color: 'var(--accent-primary)' }}>₹{service.price}</p>
-                                {selectedService?.id === service.id && (
-                                  <div className="mt-2">
-                                    <span className="status-info">✓ Selected</span>
-                                  </div>
-                                )}
-                              </div>
                             </div>
-                          </div>
-                        ))}
+                          ))
+                        )}
                       </div>
                     </div>
                   )}
@@ -217,59 +472,80 @@ export default function BookingModal({ isOpen, onClose, salon }) {
                         <p className="text-body">Select from our experienced professionals</p>
                       </div>
                       <div className="grid gap-4 max-h-96 overflow-y-auto">
-                        {salon.staff?.map((staff) => (
-                          <div
-                            key={staff.id}
-                            onClick={() => setSelectedStaff(staff)}
-                            className={`card-interactive p-6 cursor-pointer transition-all ${
-                              selectedStaff?.id === staff.id
-                                ? 'ring-2 ring-blue-500'
-                                : ''
-                            }`}
-                            style={{
-                              border: selectedStaff?.id === staff.id 
-                                ? '2px solid var(--accent-primary)' 
-                                : '1px solid var(--border-light)',
-                              background: selectedStaff?.id === staff.id 
-                                ? 'rgba(14, 165, 233, 0.05)' 
-                                : 'var(--background)'
-                            }}
-                          >
-                            <div className="flex items-center space-x-4">
-                              <div className="relative">
-                                <img
-                                  src={staff.image}
-                                  alt={staff.name}
-                                  className="w-20 h-20 rounded-full object-cover"
-                                  style={{ boxShadow: 'var(--shadow-card)' }}
-                                />
-                                {selectedStaff?.id === staff.id && (
-                                  <div className="absolute -top-1 -right-1 w-6 h-6 rounded-full flex items-center justify-center text-white text-sm" 
-                                       style={{ background: 'var(--accent-primary)' }}>
-                                    ✓
+                        {staff.length === 0 ? (
+                          <div className="text-center py-8">
+                            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
+                            <p className="text-caption mt-2">Loading available staff...</p>
+                          </div>
+                        ) : (
+                          staff.map((staffMember) => (
+                            <div
+                              key={staffMember.id}
+                              onClick={() => setSelectedStaff(staffMember)}
+                              className={`card-interactive p-6 cursor-pointer transition-all ${
+                                selectedStaff?.id === staffMember.id
+                                  ? 'ring-2 ring-blue-500'
+                                  : ''
+                              }`}
+                              style={{
+                                border: selectedStaff?.id === staffMember.id 
+                                  ? '2px solid var(--accent-primary)' 
+                                  : '1px solid var(--border-light)',
+                                background: selectedStaff?.id === staffMember.id 
+                                  ? 'rgba(14, 165, 233, 0.05)' 
+                                  : 'var(--background)'
+                              }}
+                            >
+                              <div className="flex items-center space-x-4">
+                                <div className="relative">
+                                  <div className="w-20 h-20 rounded-full bg-gray-200 flex items-center justify-center text-2xl text-gray-600"
+                                       style={{ boxShadow: 'var(--shadow-card)' }}>
+                                    👤
                                   </div>
-                                )}
-                              </div>
-                              <div className="flex-1">
-                                <h5 className="heading-sm mb-1">{staff.name}</h5>
-                                <p className="text-body mb-2">{staff.experience}</p>
-                                <div className="flex flex-wrap gap-1 mb-2">
-                                  {staff.specialties.slice(0, 3).map((specialty, index) => (
-                                    <span key={index} className="px-2 py-1 text-xs rounded-full"
-                                          style={{ background: 'var(--background-tertiary)', color: 'var(--foreground-secondary)' }}>
-                                      {specialty}
-                                    </span>
-                                  ))}
+                                  {selectedStaff?.id === staffMember.id && (
+                                    <div className="absolute -top-1 -right-1 w-6 h-6 rounded-full flex items-center justify-center text-white text-sm" 
+                                         style={{ background: 'var(--accent-primary)' }}>
+                                      ✓
+                                    </div>
+                                  )}
                                 </div>
-                                <div className="flex items-center">
-                                  <StarIcon className="h-4 w-4 text-yellow-400" />
-                                  <span className="text-sm font-medium ml-1">{staff.rating}</span>
-                                  <span className="text-caption ml-2">• Next available: Today 2:00 PM</span>
+                                <div className="flex-1">
+                                  <h5 className="heading-sm mb-1">{staffMember.name}</h5>
+                                  <p className="text-body mb-2">{staffMember.role}</p>
+                                  {staffMember.experience && (
+                                    <p className="text-caption mb-2">{staffMember.experience}</p>
+                                  )}
+                                  <div className="flex flex-wrap gap-1 mb-2">
+                                    {staffMember.specialties?.slice(0, 3).map((specialty, index) => (
+                                      <span key={index} className="px-2 py-1 text-xs rounded-full"
+                                            style={{ background: 'var(--background-tertiary)', color: 'var(--foreground-secondary)' }}>
+                                        {specialty}
+                                      </span>
+                                    ))}
+                                  </div>
+                                  <div className="flex items-center">
+                                    <Star className="h-4 w-4 text-yellow-400" />
+                                    <span className="text-sm font-medium ml-1">{staffMember.rating || '4.5'}</span>
+                                    <span className="text-caption ml-2">• Available today</span>
+                                  </div>
                                 </div>
                               </div>
                             </div>
-                          </div>
-                        ))}
+                          ))
+                        )}
+                        
+                        {/* Option to skip staff selection */}
+                        <div className="mt-4 text-center">
+                          <button
+                            onClick={() => {
+                              setSelectedStaff(null);
+                              handleNext();
+                            }}
+                            className="text-blue-600 hover:text-blue-800 text-sm font-medium"
+                          >
+                            Skip - Let salon assign staff →
+                          </button>
+                        </div>
                       </div>
                     </div>
                   )}
@@ -300,35 +576,104 @@ export default function BookingModal({ isOpen, onClose, salon }) {
                         <label className="block heading-sm mb-3">
                           ⏰ Select Time
                         </label>
-                        <div className="grid grid-cols-3 md:grid-cols-4 gap-3 max-h-48 overflow-y-auto">
-                          {timeSlots.map((time) => (
-                            <button
-                              key={time}
-                              onClick={() => setSelectedTime(time)}
-                              className={`p-3 text-sm rounded-lg transition-all font-medium ${
-                                selectedTime === time
-                                  ? 'text-white'
-                                  : 'hover:shadow-md'
-                              }`}
-                              style={{
-                                border: selectedTime === time 
-                                  ? '2px solid var(--accent-primary)' 
-                                  : '1px solid var(--border-medium)',
-                                background: selectedTime === time 
-                                  ? 'var(--accent-primary)' 
-                                  : 'var(--background)',
-                                color: selectedTime === time 
-                                  ? 'white' 
-                                  : 'var(--foreground-secondary)',
-                                boxShadow: selectedTime === time 
-                                  ? 'var(--shadow-card)' 
-                                  : 'var(--shadow-soft)'
-                              }}
-                            >
-                              {time}
-                            </button>
-                          ))}
-                        </div>
+                        {availabilityLoading ? (
+                          <div className="text-center py-8">
+                            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
+                            <p className="text-caption mt-2">Loading available times...</p>
+                          </div>
+                        ) : (availableSlots.length === 0 && blockedSlots.length === 0) ? (
+                          <div className="text-center py-8">
+                            <p className="text-body">No time slots available for this date.</p>
+                            <p className="text-caption mt-1">Please select a different date.</p>
+                          </div>
+                        ) : (
+                          <>
+                            {/* Legend */}
+                            <div className="flex gap-4 text-xs text-gray-600 mb-4">
+                              <div className="flex items-center gap-1">
+                                <div className="w-3 h-3 bg-blue-500 rounded"></div>
+                                <span>Available</span>
+                              </div>
+                              <div className="flex items-center gap-1">
+                                <div className="w-3 h-3 bg-red-200 border border-red-300 rounded"></div>
+                                <span>Booked</span>
+                              </div>
+                            </div>
+                            
+                            <div className="grid grid-cols-3 md:grid-cols-4 gap-3 max-h-48 overflow-y-auto">
+                            {/* Combine and sort all slots by time */}
+                            {[...availableSlots.map(slot => ({...slot, isAvailable: true})), 
+                              ...blockedSlots.map(slot => ({...slot, isAvailable: false}))]
+                               .sort((a, b) => a.time.localeCompare(b.time))
+                               .map((slot) => {
+                              const time12h = convertTo12Hour(slot.time);
+                              return (
+                                <button
+                                  key={slot.time}
+                                  onClick={() => {
+                                    if (slot.isAvailable) {
+                                      setSelectedTime(time12h);
+                                      // If no staff selected yet and slot has available staff, auto-select first one
+                                      if (!selectedStaff && slot.availableStaff.length > 0) {
+                                        setSelectedStaff(slot.availableStaff[0]);
+                                      }
+                                    }
+                                  }}
+                                  disabled={!slot.isAvailable}
+                                  className={`p-3 text-sm rounded-lg transition-all font-medium relative ${
+                                    !slot.isAvailable
+                                      ? 'cursor-not-allowed opacity-75 bg-red-50 border-red-200 text-red-600'
+                                      : selectedTime === time12h
+                                      ? 'text-white bg-blue-500 border-blue-500'
+                                      : 'hover:shadow-md hover:bg-blue-50 border-gray-300'
+                                  }`}
+                                  style={{
+                                    border: !slot.isAvailable
+                                      ? '1px solid #fecaca'
+                                      : selectedTime === time12h 
+                                      ? '2px solid var(--accent-primary)' 
+                                      : '1px solid var(--border-medium)',
+                                    background: !slot.isAvailable
+                                      ? '#fef2f2'
+                                      : selectedTime === time12h 
+                                      ? 'var(--accent-primary)' 
+                                      : 'var(--background)',
+                                    color: !slot.isAvailable
+                                      ? '#dc2626'
+                                      : selectedTime === time12h 
+                                      ? 'white' 
+                                      : 'var(--foreground-secondary)',
+                                    boxShadow: selectedTime === time12h 
+                                      ? 'var(--shadow-card)' 
+                                      : 'var(--shadow-soft)'
+                                  }}
+                                  title={!slot.isAvailable && slot.blockedStaff?.length > 0
+                                    ? `Booked by: ${slot.blockedStaff.map(s => s.bookingDetails?.customer || 'Customer').join(', ')}`
+                                    : ''
+                                  }
+                                >
+                                  {time12h}
+                                  {slot.isAvailable && slot.availableStaff?.length > 0 && (
+                                    <div className="text-xs mt-1 opacity-75">
+                                      {slot.availableStaff.length} staff available
+                                    </div>
+                                  )}
+                                  {!slot.isAvailable && (
+                                    <div className="text-xs mt-1 opacity-75">
+                                      Booked
+                                    </div>
+                                  )}
+                                  {!slot.isAvailable && (
+                                    <div className="absolute top-1 right-1">
+                                      <div className="w-2 h-2 bg-red-500 rounded-full"></div>
+                                    </div>
+                                  )}
+                                </button>
+                              );
+                            })}
+                          </div>
+                          </>
+                        )}
                       </div>
                     </div>
                   )}
@@ -366,7 +711,7 @@ export default function BookingModal({ isOpen, onClose, salon }) {
                         </div>
                         <div>
                           <label className="block heading-sm mb-3">
-                            ✉️ Email Address
+                            ✉️ Email Address (Optional)
                           </label>
                           <input
                             type="email"
@@ -374,6 +719,18 @@ export default function BookingModal({ isOpen, onClose, salon }) {
                             onChange={(e) => setCustomerDetails({...customerDetails, email: e.target.value})}
                             className="input-booksy"
                             placeholder="your.email@example.com"
+                          />
+                        </div>
+                        <div>
+                          <label className="block heading-sm mb-3">
+                            📝 Special Requests (Optional)
+                          </label>
+                          <textarea
+                            value={customerDetails.notes || ''}
+                            onChange={(e) => setCustomerDetails({...customerDetails, notes: e.target.value})}
+                            className="input-booksy"
+                            rows={3}
+                            placeholder="Any special requests or notes for your appointment..."
                           />
                         </div>
                         
@@ -490,7 +847,6 @@ export default function BookingModal({ isOpen, onClose, salon }) {
                       onClick={handleNext}
                       disabled={
                         (step === 1 && !selectedService) ||
-                        (step === 2 && !selectedStaff) ||
                         (step === 3 && (!selectedDate || !selectedTime))
                       }
                       className="ml-auto px-6 py-2 bg-teal-600 text-white rounded-lg hover:bg-teal-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors"
@@ -502,11 +858,11 @@ export default function BookingModal({ isOpen, onClose, salon }) {
                   {step === 4 && (
                     <button
                       onClick={handleBooking}
-                      disabled={!customerDetails.name || !customerDetails.phone || !customerDetails.email || isLoading}
+                      disabled={!customerDetails.name || !customerDetails.phone || isLoading}
                       className="btn-primary ml-auto flex items-center"
                       style={{
-                        opacity: !customerDetails.name || !customerDetails.phone || !customerDetails.email || isLoading ? 0.5 : 1,
-                        cursor: !customerDetails.name || !customerDetails.phone || !customerDetails.email || isLoading ? 'not-allowed' : 'pointer'
+                        opacity: !customerDetails.name || !customerDetails.phone || isLoading ? 0.5 : 1,
+                        cursor: !customerDetails.name || !customerDetails.phone || isLoading ? 'not-allowed' : 'pointer'
                       }}
                     >
                       {isLoading ? (

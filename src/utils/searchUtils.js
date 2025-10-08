@@ -65,7 +65,7 @@ const matchesKeywords = (text, keywords) => {
 // Mock user location - in real app, this would come from localStorage or user profile
 const getUserLocation = () => {
   const savedLocation = typeof window !== 'undefined' ? localStorage.getItem('userLocation') : null;
-  return savedLocation || 'Current Location';
+  return savedLocation || ''; // Return empty string so location field starts empty
 };
 
 // Set user location

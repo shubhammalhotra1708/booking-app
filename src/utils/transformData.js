@@ -1,0 +1,153 @@
+// Data transformation utilities for API responses
+// Converts API responses to match mock data structure for UI compatibility
+
+export const transformShopData = (apiShop) => {
+  if (!apiShop) return null;
+  
+  // Use uploaded images if available, otherwise fallback to default
+  let shopImages = [];
+  if (apiShop.images && Array.isArray(apiShop.images) && apiShop.images.length > 0) {
+    // Use uploaded images
+    shopImages = apiShop.images.map(img => img.url || img);
+  } else {
+    // Fallback to default images
+    const mainImage = apiShop.image || '/s1.jpeg';
+    shopImages = [mainImage, '/s2.jpeg', '/s3.jpeg'];
+  }
+  
+  return {
+    id: apiShop.id,
+    name: apiShop.name || 'Unnamed Salon',
+    image: shopImages[0], // First image as main image
+    images: shopImages,
+    rating: apiShop.rating || 4.5,
+    reviewCount: apiShop.review_count || 0,
+    price: transformPriceRange(apiShop.price_range),
+    services: [], // Will be populated separately
+    address: apiShop.address || 'Address not available',
+    city: apiShop.city || 'City not specified',
+    distance: calculateDistance(), // Mock distance for now
+    isOpen: true, // Default to open for now
+    nextAvailable: getNextAvailableSlot(),
+    specialOffer: apiShop.special_offer || null,
+    phone: Array.isArray(apiShop.phone) ? apiShop.phone.join(', ') : (apiShop.phone || 'Phone not available'),
+    email: apiShop.email || 'Email not available',
+    description: apiShop.description || apiShop.about || 'Description not available',
+    openingHours: apiShop.operating_hours || {
+      monday: "10:00 AM - 8:00 PM",
+      tuesday: "10:00 AM - 8:00 PM",
+      wednesday: "10:00 AM - 8:00 PM",
+      thursday: "10:00 AM - 8:00 PM",
+      friday: "10:00 AM - 9:00 PM",
+      saturday: "9:00 AM - 9:00 PM",
+      sunday: "11:00 AM - 7:00 PM"
+    }
+  };
+};
+
+export const transformServiceData = (apiService) => {
+  if (!apiService) return null;
+  
+  return {
+    id: apiService.id,
+    name: apiService.name || 'Unnamed Service',
+    price: apiService.price || 0,
+    duration: apiService.duration ? `${apiService.duration} min` : '30 min',
+    description: apiService.description || 'No description available'
+  };
+};
+
+export const transformStaffData = (apiStaff) => {
+  if (!apiStaff) return null;
+  
+  // Parse specialties if it's a JSON string
+  let specialties = [];
+  if (apiStaff.specialties) {
+    try {
+      specialties = typeof apiStaff.specialties === 'string' 
+        ? JSON.parse(apiStaff.specialties) 
+        : apiStaff.specialties;
+    } catch (e) {
+      specialties = [apiStaff.specialties];
+    }
+  }
+  
+  return {
+    id: apiStaff.id,
+    name: apiStaff.name || 'Staff Member',
+    image: apiStaff.image || '/api/placeholder/150/150',
+    specialties: Array.isArray(specialties) ? specialties : ['General Services'],
+    experience: apiStaff.experience || 'Experience not specified',
+    rating: apiStaff.rating || 4.5,
+    role: apiStaff.role || 'Stylist',
+    bio: apiStaff.bio || 'Bio not available'
+  };
+};
+
+// Helper functions
+const transformPriceRange = (priceRange) => {
+  const priceMap = {
+    'low': '$',
+    'medium': '$$',
+    'high': '$$$',
+    'premium': '$$$$'
+  };
+  return priceMap[priceRange] || '$$';
+};
+
+const calculateDistance = () => {
+  // Mock distance calculation - in real app would use geolocation
+  const distances = ['0.5 miles', '1.2 miles', '2.1 miles', '1.8 miles', '3.0 miles'];
+  return distances[Math.floor(Math.random() * distances.length)];
+};
+
+const getNextAvailableSlot = () => {
+  // Mock next available slot - in real app would check actual availability
+  const today = new Date();
+  const slots = [
+    'Today 2:00 PM',
+    'Today 4:30 PM',
+    'Today 6:00 PM',
+    'Tomorrow 10:00 AM',
+    'Tomorrow 11:30 AM'
+  ];
+  return slots[Math.floor(Math.random() * slots.length)];
+};
+
+// Transform multiple items
+export const transformShopsData = (apiShops) => {
+  if (!Array.isArray(apiShops)) return [];
+  return apiShops.map(transformShopData).filter(Boolean);
+};
+
+export const transformServicesData = (apiServices) => {
+  if (!Array.isArray(apiServices)) return [];
+  return apiServices.map(transformServiceData).filter(Boolean);
+};
+
+export const transformStaffDataArray = (apiStaff) => {
+  if (!Array.isArray(apiStaff)) return [];
+  return apiStaff.map(transformStaffData).filter(Boolean);
+};
+
+// Complete shop details transformation with services and staff
+export const transformCompleteShopDetails = (shop, services = [], staff = []) => {
+  const transformedShop = transformShopData(shop);
+  if (!transformedShop) return null;
+  
+  return {
+    ...transformedShop,
+    services: transformServicesData(services),
+    staff: transformStaffDataArray(staff),
+    images: [transformedShop.image, '/api/placeholder/400/300', '/api/placeholder/400/300'],
+    openingHours: {
+      monday: "10:00 AM - 8:00 PM",
+      tuesday: "10:00 AM - 8:00 PM",
+      wednesday: "10:00 AM - 8:00 PM",
+      thursday: "10:00 AM - 8:00 PM",
+      friday: "10:00 AM - 9:00 PM",
+      saturday: "9:00 AM - 9:00 PM",
+      sunday: "11:00 AM - 7:00 PM"
+    }
+  };
+};

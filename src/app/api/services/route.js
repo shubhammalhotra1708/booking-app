@@ -1,25 +1,53 @@
-export async function GET() {
-  try {
-    const supabase = await createClient();
-    const { data, error } = await supabase.from('Service').select('*');
-    if (error) throw error;
-    return NextResponse.json({ success: true, data });
-  } catch (error) {
-    return NextResponse.json({ success: false, error: error.message }, { status: 500 });
-  }
-}
-// export async function GET() {
-//   try {
-//     const supabase = await createClient();
-//     const { data, error } = await supabase.from('Service').select('*');
-//     if (error) throw error;
-//     return NextResponse.json({ success: true, data });
-//   } catch (error) {
-//     return NextResponse.json({ success: false, error: error.message }, { status: 500 });
-//   }
-// }
 import { createClient } from '@/utils/supabase/server'
 import { NextResponse } from 'next/server'
+import { createErrorResponse, createSuccessResponse } from '@/lib/validation';
+
+// Add caching for static data
+export const revalidate = 300; // 5 minutes cache
+
+export async function GET(request) {
+  try {
+    const { searchParams } = new URL(request.url);
+    const shopId = searchParams.get('shop_id');
+    
+    const supabase = await createClient();
+    
+    let query = supabase
+      .from('Service')
+      .select('*')
+      .order('name');
+    
+    // If shop_id is provided, filter by shop
+    if (shopId) {
+      query = query.eq('shop_id', parseInt(shopId));
+    }
+    
+    const { data, error } = await query;
+    
+    if (error) {
+      console.error('Database error:', error);
+      return NextResponse.json(
+        createErrorResponse('Failed to fetch services', 500, error.message),
+        { status: 500 }
+      );
+    }
+    
+    return NextResponse.json(
+      createSuccessResponse(data || [], 'Services retrieved successfully'),
+      {
+        headers: {
+          'Cache-Control': 'public, s-maxage=300, stale-while-revalidate=60',
+        },
+      }
+    );
+  } catch (error) {
+    console.error('API error:', error);
+    return NextResponse.json(
+      createErrorResponse('Internal server error', 500, error.message),
+      { status: 500 }
+    );
+  }
+}
 
 export async function POST() {
   try {
@@ -31,7 +59,7 @@ export async function POST() {
       .select('*')
       .limit(3)
 
-    console.log('Shop table check:', { existingShops, shopError })
+    // Development logging removed for production
 
     let shopIds = []
     

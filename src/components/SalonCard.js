@@ -2,21 +2,26 @@
 
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { StarIcon, MapPinIcon, ClockIcon, HeartIcon } from '@heroicons/react/24/solid';
-import { HeartIcon as HeartOutlineIcon, ClockIcon as ClockOutlineIcon } from '@heroicons/react/24/outline';
+import { Star, MapPin, Clock, Heart } from 'lucide-react';
 import { useState } from 'react';
 
 export default function SalonCard({ salon, showStatusBadge = true, showSpecialOffer = true, showDetailsButton = true }) {
   const router = useRouter();
   const [isFavorited, setIsFavorited] = useState(false);
 
+  // Handle null/undefined salon
+  if (!salon) {
+    return null;
+  }
+
   // Ensure consistent pricing display
   const displayPrice = salon.price || salon.priceRange || '$$';
   
   // Limit services display and calculate overflow
   const maxServices = 2;
-  const displayServices = salon.services.slice(0, maxServices);
-  const extraServicesCount = Math.max(0, salon.services.length - maxServices);
+  const services = salon.services || [];
+  const displayServices = services.slice(0, maxServices);
+  const extraServicesCount = Math.max(0, services.length - maxServices);
 
   return (
     <Link href={`/salon/${salon.id}`} className="block h-[380px]">
@@ -24,8 +29,8 @@ export default function SalonCard({ salon, showStatusBadge = true, showSpecialOf
         {/* Image Container - Fixed Height */}
         <div className="relative h-32 overflow-hidden flex-shrink-0">
           <img
-            src={salon.image}
-            alt={salon.name}
+            src={salon.image || '/s1.jpeg'}
+            alt={salon.name || 'Salon'}
             className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
           />
           
@@ -33,11 +38,11 @@ export default function SalonCard({ salon, showStatusBadge = true, showSpecialOf
           {showStatusBadge && (
             <div className="absolute top-3 right-3 z-10">
               <span className={`px-2.5 py-1 rounded-full text-xs font-bold shadow-lg ${
-                salon.isOpen 
+                salon.isOpen !== false
                   ? 'bg-emerald-500 text-white' 
                   : 'bg-red-500 text-white'
               }`}>
-                {salon.isOpen ? '● OPEN' : '● CLOSED'}
+                {salon.isOpen !== false ? '● OPEN' : '● CLOSED'}
               </span>
             </div>
           )}
@@ -52,9 +57,9 @@ export default function SalonCard({ salon, showStatusBadge = true, showSpecialOf
             className="absolute top-3 left-3 p-1.5 rounded-full bg-white/90 backdrop-blur-sm shadow-md transition-all hover:scale-110 hover:bg-white z-10"
           >
           {isFavorited ? (
-            <HeartIcon className="h-4 w-4 text-red-500" />
+            <Heart className="h-4 w-4 text-red-500 fill-current" />
           ) : (
-            <HeartOutlineIcon className="h-4 w-4 text-gray-600" />
+            <Heart className="h-4 w-4 text-gray-600" />
           )}
         </button>
 
@@ -83,7 +88,7 @@ export default function SalonCard({ salon, showStatusBadge = true, showSpecialOf
             {salon.name}
           </h3>
           <div className="flex items-center flex-shrink-0 bg-yellow-50 px-2.5 py-1.5 rounded-full border border-yellow-200">
-            <StarIcon className="h-3 w-3 text-yellow-500" />
+            <Star className="h-3 w-3 text-yellow-500 fill-current" />
             <span className="text-xs font-bold ml-1 text-gray-900">
               {salon.rating}
             </span>
@@ -96,7 +101,7 @@ export default function SalonCard({ salon, showStatusBadge = true, showSpecialOf
         {/* Location & Price - Fixed Height */}
         <div className="flex items-center justify-between mb-3 h-5">
           <div className="flex items-center flex-1 min-w-0">
-            <MapPinIcon className="h-3 w-3 text-gray-400 flex-shrink-0" />
+            <MapPin className="h-3 w-3 text-gray-400 flex-shrink-0" />
             <span className="text-xs text-gray-600 ml-1 truncate">{salon.address}</span>
           </div>
           <div className="flex items-center ml-2 flex-shrink-0">
@@ -127,7 +132,7 @@ export default function SalonCard({ salon, showStatusBadge = true, showSpecialOf
 
         {/* Availability - Fixed Height */}
         <div className="mb-4 h-6 flex items-center">
-          <ClockIcon className="h-3 w-3 text-gray-400 mr-1" />
+          <Clock className="h-3 w-3 text-gray-400 mr-1" />
           <span className="text-xs text-gray-600">
             {salon.nextAvailable || 'Call for availability'}
           </span>

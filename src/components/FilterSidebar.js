@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { ChevronDownIcon, ChevronUpIcon, AdjustmentsHorizontalIcon } from '@heroicons/react/24/outline';
+import { ChevronDown, ChevronUp, Settings } from 'lucide-react';
 import { serviceCategories, priceRanges } from '../data/mockData';
 
 export default function FilterSidebar({ isOpen, onClose }) {
@@ -64,7 +64,7 @@ export default function FilterSidebar({ isOpen, onClose }) {
         <div className="p-5" style={{ borderBottom: '1px solid var(--border-light)' }}>
           <div className="flex items-center justify-between">
             <h2 className="heading-md flex items-center">
-              <AdjustmentsHorizontalIcon className="h-5 w-5 mr-2" />
+              <Settings className="h-5 w-5 mr-2" />
               Filters
             </h2>
             <div className="flex items-center space-x-3">
@@ -96,9 +96,9 @@ export default function FilterSidebar({ isOpen, onClose }) {
             >
               <h3 className="text-md font-medium text-gray-900">Services</h3>
               {expandedSections.services ? (
-                <ChevronUpIcon className="h-5 w-5 text-gray-500" />
+                <ChevronUp className="h-5 w-5 text-gray-500" />
               ) : (
-                <ChevronDownIcon className="h-5 w-5 text-gray-500" />
+                <ChevronDown className="h-5 w-5 text-gray-500" />
               )}
             </button>
             
@@ -132,9 +132,9 @@ export default function FilterSidebar({ isOpen, onClose }) {
             >
               <h3 className="text-md font-medium text-gray-900">Price Range</h3>
               {expandedSections.price ? (
-                <ChevronUpIcon className="h-5 w-5 text-gray-500" />
+                <ChevronUp className="h-5 w-5 text-gray-500" />
               ) : (
-                <ChevronDownIcon className="h-5 w-5 text-gray-500" />
+                <ChevronDown className="h-5 w-5 text-gray-500" />
               )}
             </button>
             
@@ -167,9 +167,9 @@ export default function FilterSidebar({ isOpen, onClose }) {
             >
               <h3 className="text-md font-medium text-gray-900">Rating</h3>
               {expandedSections.rating ? (
-                <ChevronUpIcon className="h-5 w-5 text-gray-500" />
+                <ChevronUp className="h-5 w-5 text-gray-500" />
               ) : (
-                <ChevronDownIcon className="h-5 w-5 text-gray-500" />
+                <ChevronDown className="h-5 w-5 text-gray-500" />
               )}
             </button>
             
@@ -202,9 +202,9 @@ export default function FilterSidebar({ isOpen, onClose }) {
             >
               <h3 className="text-md font-medium text-gray-900">Distance</h3>
               {expandedSections.distance ? (
-                <ChevronUpIcon className="h-5 w-5 text-gray-500" />
+                <ChevronUp className="h-5 w-5 text-gray-500" />
               ) : (
-                <ChevronDownIcon className="h-5 w-5 text-gray-500" />
+                <ChevronDown className="h-5 w-5 text-gray-500" />
               )}
             </button>
             

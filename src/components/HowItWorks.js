@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { MagnifyingGlassIcon, BuildingStorefrontIcon, CalendarDaysIcon, CheckCircleIcon } from '@heroicons/react/24/outline';
+import { Search, Store, Calendar, CheckCircle } from 'lucide-react';
 
 export default function HowItWorks() {
   const [isVisible, setIsVisible] = useState(false);
@@ -15,7 +15,7 @@ export default function HowItWorks() {
       id: 1,
       title: "Choose Your Service",
       description: "Browse through hundreds of beauty services including hair, nails, massage, facial treatments and more",
-      icon: <MagnifyingGlassIcon className="h-8 w-8" />,
+      icon: <Search className="h-8 w-8" />,
       gradient: "from-pink-400 to-rose-500",
       bgColor: "bg-pink-50",
       iconColor: "text-pink-600"
@@ -24,7 +24,7 @@ export default function HowItWorks() {
       id: 2,
       title: "Select Your Salon",
       description: "Pick from top-rated salons near you with real reviews, photos, and availability in real-time",
-      icon: <BuildingStorefrontIcon className="h-8 w-8" />,
+      icon: <Store className="h-8 w-8" />,
       gradient: "from-blue-400 to-indigo-500",
       bgColor: "bg-blue-50",
       iconColor: "text-blue-600"
@@ -33,7 +33,7 @@ export default function HowItWorks() {
       id: 3,
       title: "Book Your Appointment",
       description: "Choose your preferred time slot and book instantly. Get confirmation and reminders via SMS",
-      icon: <CalendarDaysIcon className="h-8 w-8" />,
+      icon: <Calendar className="h-8 w-8" />,
       gradient: "from-emerald-400 to-teal-500",
       bgColor: "bg-emerald-50",
       iconColor: "text-emerald-600"
@@ -56,7 +56,7 @@ export default function HowItWorks() {
           
           {/* Success Badge */}
           <div className="inline-flex items-center bg-emerald-50 text-emerald-700 px-4 py-2 rounded-full border border-emerald-200">
-            <CheckCircleIcon className="h-5 w-5 mr-2" />
+            <CheckCircle className="h-5 w-5 mr-2" />
             <span className="text-sm font-medium">Over 10,000 appointments booked monthly</span>
           </div>
         </div>

@@ -1,8 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { StarIcon } from '@heroicons/react/24/solid';
-import { StarIcon as StarOutlineIcon } from '@heroicons/react/24/outline';
+import { Star } from 'lucide-react';
 
 export default function ReviewSection({ reviews, averageRating, totalReviews }) {
   const [showWriteReview, setShowWriteReview] = useState(false);
@@ -21,7 +20,9 @@ export default function ReviewSection({ reviews, averageRating, totalReviews }) 
   ];
 
   const handleSubmitReview = () => {
-    console.log('Submitting review:', newReview);
+    if (process.env.NODE_ENV === 'development') {
+      console.log('Submitting review:', newReview);
+    }
     // Handle review submission
     setShowWriteReview(false);
     setNewReview({ rating: 0, comment: '', service: '' });
@@ -56,11 +57,11 @@ export default function ReviewSection({ reviews, averageRating, totalReviews }) 
           </div>
           <div className="flex items-center justify-center mb-2">
             {[1, 2, 3, 4, 5].map((star) => (
-              <StarIcon
+              <Star
                 key={star}
                 className={`h-6 w-6 ${
                   star <= Math.floor(averageRating)
-                    ? 'text-yellow-400'
+                    ? 'text-yellow-400 fill-current'
                     : 'text-gray-300'
                 }`}
               />
@@ -103,11 +104,9 @@ export default function ReviewSection({ reviews, averageRating, totalReviews }) 
                     onClick={() => setNewReview({ ...newReview, rating: star })}
                     className="p-1"
                   >
-                    {star <= newReview.rating ? (
-                      <StarIcon className="h-8 w-8 text-yellow-400" />
-                    ) : (
-                      <StarOutlineIcon className="h-8 w-8 text-gray-300" />
-                    )}
+                    <Star 
+                      className={`h-8 w-8 ${star <= newReview.rating ? 'text-yellow-400 fill-current' : 'text-gray-300'}`}
+                    />
                   </button>
                 ))}
               </div>
@@ -184,11 +183,11 @@ export default function ReviewSection({ reviews, averageRating, totalReviews }) 
                     <div className="flex items-center space-x-2">
                       <div className="flex">
                         {[1, 2, 3, 4, 5].map((star) => (
-                          <StarIcon
+                          <Star
                             key={star}
                             className={`h-4 w-4 ${
                               star <= review.rating
-                                ? 'text-yellow-400'
+                                ? 'text-yellow-400 fill-current'
                                 : 'text-gray-300'
                             }`}
                           />

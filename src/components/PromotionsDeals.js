@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { ChevronLeftIcon, ChevronRightIcon, TagIcon, SparklesIcon } from '@heroicons/react/24/outline';
+import { ChevronLeft, ChevronRight, Tag, Sparkles } from 'lucide-react';
 
 export default function PromotionsDeals() {
   const [isVisible, setIsVisible] = useState(false);
@@ -88,13 +88,13 @@ export default function PromotionsDeals() {
               onClick={prevSlide}
               className="p-2 rounded-full bg-gray-100 hover:bg-gray-200 transition-colors"
             >
-              <ChevronLeftIcon className="h-5 w-5 text-gray-600" />
+              <ChevronLeft className="h-5 w-5 text-gray-600" />
             </button>
             <button
               onClick={nextSlide}
               className="p-2 rounded-full bg-gray-100 hover:bg-gray-200 transition-colors"
             >
-              <ChevronRightIcon className="h-5 w-5 text-gray-600" />
+              <ChevronRight className="h-5 w-5 text-gray-600" />
             </button>
           </div>
         </div>
@@ -141,7 +141,7 @@ export default function PromotionsDeals() {
                             {/* Deal Icon */}
                             <div className="absolute top-4 right-4">
                               <div className="bg-white/20 backdrop-blur-sm rounded-full p-2">
-                                <TagIcon className="h-5 w-5 text-white" />
+                                <Tag className="h-5 w-5 text-white" />
                               </div>
                             </div>
                           </div>

@@ -1,71 +1,115 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { ChevronLeftIcon, ChevronRightIcon, FunnelIcon, Bars3BottomLeftIcon } from '@heroicons/react/24/outline';
+import Link from 'next/link';
 import SalonCard from './SalonCard';
-import { featuredSalons } from '@/data/mockData';
+import { transformShopData } from '@/utils/transformData';
 
-export default function FeaturedSalons() {
+export default function FeaturedSalons({ salons = null }) {
   const [isVisible, setIsVisible] = useState(false);
   const [sortBy, setSortBy] = useState('recommended');
+  
+  // Smart data loading: Featured shops only (8-10 shops max)
+  // NOTE: Currently using rating-based selection. TODO: Add 'featured' column to Shop table
+  const [salonData, setSalonData] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
 
   useEffect(() => {
     setIsVisible(true);
+    
+    // Load featured shops - optimized for homepage
+    const loadFeaturedShops = async () => {
+      try {
+        setLoading(true);
+        
+        // Fetch top 5 shops only for fast loading (no complex joins)
+        const response = await fetch('/api/shops?limit=5&basic=true');
+        const result = await response.json();
+        
+        if (result.success && result.data?.length > 0) {
+          const processedShops = result.data.map(shop => ({
+            ...transformShopData(shop),
+            // Default categories for display (no API call to services)
+            categories: ['Beauty', 'Hair'], // Default since we're not fetching services for performance
+            isVerified: shop.is_verified || false
+          }));
+          setSalonData(processedShops);
+        } else {
+          // If no shops found, this might be a database/API issue
+          setError(result.message || 'No shops available at the moment');
+        }
+      } catch (err) {
+        console.error('Failed to load featured shops:', err);
+        setError('Failed to load shops');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadFeaturedShops();
   }, []);
 
-  const sortOptions = [
-    { value: 'recommended', label: 'Recommended' },
-    { value: 'rating', label: 'Highest Rated' },
-    { value: 'distance', label: 'Nearest' },
-    { value: 'price-low', label: 'Price: Low to High' },
-    { value: 'price-high', label: 'Price: High to Low' }
-  ];
+  // Removed sorting options since we only have 5 shops
 
-  // Using centralized data from mockData.js
+  // Loading state for featured shops
+  if (loading) {
+    return (
+      <section className="py-6 bg-white">
+        <div className="container-booksy">
+          <div className="mb-6">
+            <h2 className="heading-lg text-xl md:text-2xl font-bold mb-1">
+              Featured Salons Near You
+            </h2>
+            <p className="text-body text-gray-600">Loading top-rated salons...</p>
+          </div>
+          {/* Loading skeleton */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+            {[...Array(8)].map((_, i) => (
+              <div key={i} className="bg-white rounded-lg shadow-md p-4 animate-pulse">
+                <div className="bg-gray-200 h-48 rounded-lg mb-4"></div>
+                <div className="bg-gray-200 h-4 rounded mb-2"></div>
+                <div className="bg-gray-200 h-3 rounded w-3/4"></div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+    );
+  }
+
+  // Error state
+  if (error) {
+    return (
+      <section className="py-6 bg-white">
+        <div className="container-booksy">
+          <div className="text-center py-12">
+            <p className="text-red-600 mb-4">{error}</p>
+            <button 
+              onClick={() => window.location.reload()}
+              className="text-blue-600 hover:text-blue-800"
+            >
+              Try Again
+            </button>
+          </div>
+        </div>
+      </section>
+    );
+  }
 
   return (
     <section className="py-6 bg-white">
       <div className="container-booksy">
-        {/* Section Header with Controls */}
-        <div className={`flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6 transition-all duration-700 ${
+        {/* Simple Section Header */}
+        <div className={`mb-6 transition-all duration-700 ${
           isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'
         }`}>
-          <div>
-            <h2 className="heading-lg text-xl md:text-2xl font-bold mb-1">
-              Featured Salons Near You
-            </h2>
-            <p className="text-body text-sm text-gray-600">
-              {featuredSalons.length} salons available
-            </p>
-          </div>
-
-          <div className="flex items-center space-x-3">
-            {/* Filter Button */}
-            <button className="btn-secondary flex items-center text-sm">
-              <FunnelIcon className="h-4 w-4 mr-2" />
-              Filters
-            </button>
-
-            {/* Sort Dropdown */}
-            <div className="relative">
-              <select
-                value={sortBy}
-                onChange={(e) => setSortBy(e.target.value)}
-                className="input-booksy appearance-none pr-8 min-w-[140px] rounded-lg text-sm py-2"
-              >
-                {sortOptions.map((option) => (
-                  <option key={option.value} value={option.value}>
-                    {option.label}
-                  </option>
-                ))}
-              </select>
-              <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2">
-                <svg className="fill-current h-3 w-3" style={{ color: 'var(--foreground-muted)' }} xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20">
-                  <path d="M9.293 12.95l.707.707L15.657 8l-1.414-1.414L10 10.828 5.757 6.586 4.343 8z"/>
-                </svg>
-              </div>
-            </div>
-          </div>
+          <h2 className="heading-lg text-xl md:text-2xl font-bold mb-1">
+            Top Salons Near You
+          </h2>
+          <p className="text-body text-sm text-gray-600">
+            {salonData.length} featured salons
+          </p>
         </div>
 
         {/* Horizontal Scrollable Salons - Booksy Style */}
@@ -78,7 +122,7 @@ export default function FeaturedSalons() {
               WebkitOverflowScrolling: 'touch'
             }}
           >
-            {featuredSalons.map((salon, index) => (
+            {salonData.map((salon, index) => (
               <div
                 key={salon.id}
                 className={`flex-shrink-0 transition-all duration-700 ${
@@ -103,19 +147,21 @@ export default function FeaturedSalons() {
                   : 'opacity-0 translate-y-8'
               }`}
               style={{ 
-                transitionDelay: `${featuredSalons.length * 100}ms`,
+                transitionDelay: `${salonData.length * 100}ms`,
                 width: '280px'
               }}
             >
-              <div className="h-full bg-gradient-to-br from-blue-50 to-sky-50 rounded-2xl border-2 border-dashed border-sky-200 flex flex-col items-center justify-center p-8 hover:border-sky-300 hover:bg-gradient-to-br hover:from-blue-100 hover:to-sky-100 transition-all duration-300 cursor-pointer group">
-                <div className="text-sky-500 mb-4 group-hover:scale-110 transition-transform">
-                  <svg className="w-12 h-12" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
-                  </svg>
+              <Link href="/search" className="block h-full">
+                <div className="h-full bg-gradient-to-br from-blue-50 to-sky-50 rounded-2xl border-2 border-dashed border-sky-200 flex flex-col items-center justify-center p-8 hover:border-sky-300 hover:bg-gradient-to-br hover:from-blue-100 hover:to-sky-100 transition-all duration-300 cursor-pointer group">
+                  <div className="text-sky-500 mb-4 group-hover:scale-110 transition-transform">
+                    <svg className="w-12 h-12" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+                    </svg>
+                  </div>
+                  <h3 className="text-lg font-semibold text-gray-800 mb-2">View All Salons</h3>
+                  <p className="text-sm text-gray-600 text-center">Discover more options near you</p>
                 </div>
-                <h3 className="text-lg font-semibold text-gray-800 mb-2">View All Salons</h3>
-                <p className="text-sm text-gray-600 text-center">Discover more options near you</p>
-              </div>
+              </Link>
             </div>
           </div>
           

@@ -5,6 +5,9 @@ import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import Navbar from '../../../components/Navbar';
 import ReviewSection from '../../../components/ReviewSection';
+import { useShopDetails } from '../../../hooks/useApi';
+import { transformShopData, transformServiceData, transformStaffData } from '../../../utils/transformData';
+// Keep as fallback
 import { salonDetails, reviews } from '../../../data/mockData';
 import { 
   StarIcon, 
@@ -20,19 +23,67 @@ export default function SalonProfile() {
   const params = useParams();
   const router = useRouter();
   const salonId = parseInt(params.id);
-  const salon = salonDetails[salonId];
-  const salonReviews = reviews.filter(review => review.salonId === salonId);
+  
+  // Fetch real shop data from API
+  const { shop: apiShop, services: apiServices, staff: apiStaff, loading, error } = useShopDetails(salonId);
   
   const [isFavorited, setIsFavorited] = useState(false);
   const [selectedImageIndex, setSelectedImageIndex] = useState(0);
 
-  if (!salon) {
+  // Use API data or fallback to mock data
+  let salon, services, staff;
+  
+  if (!loading && !error && apiShop) {
+    // Transform API data
+    salon = {
+      ...transformShopData(apiShop),
+      services: apiServices?.map(transformServiceData) || [],
+      staff: apiStaff?.map(transformStaffData) || []
+    };
+    services = salon.services || [];
+    staff = salon.staff || [];
+  } else {
+    // Fallback to mock data
+    salon = salonDetails[salonId];
+    services = salon?.services || [];
+    staff = salon?.staff || [];
+  }
+  
+  const salonReviews = reviews.filter(review => review.salonId === salonId);
+
+  // Loading state
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gray-50">
+        <Navbar showCompactSearch={true} />
+        <div className="max-w-7xl mx-auto px-4 py-16 text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-teal-600 mx-auto mb-4"></div>
+          <p className="text-gray-600">Loading salon details...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Error or not found state
+  if (!salon || (error && !salonDetails[salonId])) {
     return (
       <div className="min-h-screen bg-gray-50">
         <Navbar showCompactSearch={true} />
         <div className="max-w-7xl mx-auto px-4 py-16 text-center">
           <h1 className="text-2xl font-bold text-gray-900">Salon not found</h1>
-          <p className="text-gray-600 mt-2">The salon you're looking for doesn't exist.</p>
+          <p className="text-gray-600 mt-2">
+            {error ? 'Unable to load salon details. Please try again.' : "The salon you're looking for doesn't exist."}
+          </p>
+          {error && (
+            <div className="mt-4">
+              <button 
+                onClick={() => window.location.reload()} 
+                className="bg-teal-600 text-white px-4 py-2 rounded-lg hover:bg-teal-700"
+              >
+                Retry
+              </button>
+            </div>
+          )}
         </div>
       </div>
     );
@@ -50,14 +101,14 @@ export default function SalonProfile() {
           <div className="lg:col-span-3">
             <div className="card-booksy overflow-hidden h-96 relative">
               <img
-                src={salon.images[selectedImageIndex]}
+                src={salon.images?.[selectedImageIndex] || salon.image || '/s1.jpeg'}
                 alt={salon.name}
                 className="w-full h-full object-cover"
               />
               {/* Image Navigation Dots */}
-              {salon.images.length > 1 && (
+              {salon.images && salon.images.length > 1 && (
                 <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2 flex space-x-2">
-                  {salon.images.map((_, index) => (
+                  {salon.images?.map((_, index) => (
                     <button
                       key={index}
                       onClick={() => setSelectedImageIndex(index)}
@@ -126,7 +177,22 @@ export default function SalonProfile() {
                 </div>
                 <div className="flex items-center text-gray-600">
                   <ClockIcon className="h-5 w-5 mr-2" />
-                  <span>Open Today: {salon.openingHours.monday}</span>
+                  <span>Open Today: {
+                    (() => {
+                      const today = new Date().toLocaleDateString('en-US', { weekday: 'long' }).toLowerCase();
+                      const todaySchedule = salon.openingHours?.[today];
+                      if (todaySchedule) {
+                        if (typeof todaySchedule === 'string') {
+                          return todaySchedule;
+                        } else if (todaySchedule.isOpen && todaySchedule.open && todaySchedule.close) {
+                          return `${todaySchedule.open} - ${todaySchedule.close}`;
+                        } else if (todaySchedule.isOpen === false) {
+                          return 'Closed';
+                        }
+                      }
+                      return '10:00 AM - 8:00 PM';
+                    })()
+                  }</span>
                 </div>
               </div>
             </div>
@@ -135,7 +201,7 @@ export default function SalonProfile() {
             <div className="bg-white rounded-xl shadow-lg p-6">
               <h2 className="text-2xl font-bold text-gray-900 mb-6">Services & Pricing</h2>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {salon.services.map((service) => (
+                {salon.services?.map((service) => (
                   <div key={service.id} className="border border-gray-200 rounded-lg p-4">
                     <div className="flex justify-between items-start mb-2">
                       <h3 className="font-semibold text-gray-900">{service.name}</h3>
@@ -157,7 +223,7 @@ export default function SalonProfile() {
             <div className="bg-white rounded-xl shadow-lg p-6">
               <h2 className="text-2xl font-bold text-gray-900 mb-6">Our Team</h2>
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {salon.staff.map((staff) => (
+                {salon.staff?.map((staff) => (
                   <div key={staff.id} className="text-center">
                     <img
                       src={staff.image}
@@ -167,7 +233,7 @@ export default function SalonProfile() {
                     <h3 className="font-semibold text-gray-900 mb-1">{staff.name}</h3>
                     <p className="text-sm text-gray-600 mb-2">{staff.experience}</p>
                     <p className="text-xs text-teal-600 mb-2">
-                      {staff.specialties.join(', ')}
+                      {staff.specialties?.join(', ') || 'General Services'}
                     </p>
                     <div className="flex items-center justify-center">
                       <StarIcon className="h-4 w-4 text-yellow-400 mr-1" />
@@ -220,12 +286,27 @@ export default function SalonProfile() {
             <div className="bg-white rounded-xl shadow-lg p-6">
               <h3 className="text-lg font-semibold text-gray-900 mb-4">Opening Hours</h3>
               <div className="space-y-2">
-                {daysOfWeek.map((day) => (
-                  <div key={day} className="flex justify-between text-sm">
-                    <span className="capitalize text-gray-600">{day}</span>
-                    <span className="font-medium">{salon.openingHours[day]}</span>
-                  </div>
-                ))}
+                {daysOfWeek.map((day) => {
+                  const daySchedule = salon.openingHours?.[day];
+                  let displayTime = 'Closed';
+                  
+                  if (daySchedule) {
+                    if (typeof daySchedule === 'string') {
+                      displayTime = daySchedule;
+                    } else if (daySchedule.isOpen && daySchedule.open && daySchedule.close) {
+                      displayTime = `${daySchedule.open} - ${daySchedule.close}`;
+                    } else if (daySchedule.isOpen === false) {
+                      displayTime = 'Closed';
+                    }
+                  }
+                  
+                  return (
+                    <div key={day} className="flex justify-between text-sm">
+                      <span className="capitalize text-gray-600">{day}</span>
+                      <span className="font-medium">{displayTime}</span>
+                    </div>
+                  );
+                })}
               </div>
             </div>
 

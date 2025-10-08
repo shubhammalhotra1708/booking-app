@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { UserIcon, Bars3Icon, XMarkIcon, MagnifyingGlassIcon, MapPinIcon } from '@heroicons/react/24/outline';
+import { User, Menu, X, Search, MapPin, ChevronDown } from 'lucide-react';
 import { getUserLocation, setUserLocation } from '@/utils/searchUtils';
 
 export default function Navbar({ showCompactSearch = false }) {
@@ -12,6 +12,8 @@ export default function Navbar({ showCompactSearch = false }) {
   const [showScrollSearch, setShowScrollSearch] = useState(false);
   const [location, setLocation] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
+  const [userSession, setUserSession] = useState(null);
+  const [showAccountMenu, setShowAccountMenu] = useState(false);
 
   // Compute search disabled state
   const searchDisabled = !searchQuery.trim();
@@ -27,6 +29,25 @@ export default function Navbar({ showCompactSearch = false }) {
     const savedLocation = getUserLocation();
     if (savedLocation && savedLocation !== 'Current Location') {
       setLocation(savedLocation);
+    }
+
+    // Check for user session
+    const savedSession = localStorage.getItem('clientSession');
+    if (savedSession) {
+      try {
+        const parsedSession = JSON.parse(savedSession);
+        // Simple session validation
+        const sessionAge = new Date() - new Date(parsedSession.createdAt);
+        const maxAge = 30 * 24 * 60 * 60 * 1000; // 30 days
+        
+        if (sessionAge < maxAge) {
+          setUserSession(parsedSession);
+        } else {
+          localStorage.removeItem('clientSession');
+        }
+      } catch (error) {
+        localStorage.removeItem('clientSession');
+      }
     }
 
     window.addEventListener('scroll', handleScroll);
@@ -96,7 +117,7 @@ export default function Navbar({ showCompactSearch = false }) {
                 <div className="flex w-full h-10 rounded-xl overflow-hidden" style={{ border: '1px solid #e5e7eb', background: 'white', boxShadow: '0 2px 8px rgba(0, 0, 0, 0.08)' }}>
                   {/* Location Input */}
                   <div className="flex-1 flex items-center border-r border-gray-200 px-3">
-                    <MapPinIcon className="h-4 w-4 text-gray-400 flex-shrink-0" />
+                    <MapPin className="h-4 w-4 text-gray-400 flex-shrink-0" />
                     <input
                       type="text"
                       placeholder="Near you"
@@ -109,7 +130,7 @@ export default function Navbar({ showCompactSearch = false }) {
                   
                   {/* Search Input */}
                   <div className="flex-1 flex items-center px-3">
-                    <MagnifyingGlassIcon className="h-4 w-4 text-gray-400 flex-shrink-0" />
+                    <Search className="h-4 w-4 text-gray-400 flex-shrink-0" />
                     <input
                       type="text"
                       placeholder="Search salons or services..."
@@ -156,26 +177,83 @@ export default function Navbar({ showCompactSearch = false }) {
               Help
             </Link>
             
-            {/* Single User Account Element */}
-            <div className="flex items-center">
-              <button 
-                className={`flex items-center space-x-2 px-4 py-2.5 rounded-lg transition-all duration-200 ${
-                  showScrollSearch || showCompactSearch 
-                    ? 'hover:bg-gray-100 border border-gray-200 hover:border-gray-300' 
-                    : 'hover:bg-gray-100 border border-gray-300 hover:border-gray-400'
-                }`}
-              >
-                <span className="text-lg">👤</span>
-                <span 
-                  className={`text-sm font-medium transition-colors ${
+            {/* User Account Element */}
+            <div className="relative">
+              {userSession ? (
+                <div>
+                  <button 
+                    onClick={() => setShowAccountMenu(!showAccountMenu)}
+                    className={`flex items-center space-x-2 px-4 py-2.5 rounded-lg transition-all duration-200 ${
+                      showScrollSearch || showCompactSearch 
+                        ? 'hover:bg-gray-100 border border-gray-200 hover:border-gray-300' 
+                        : 'hover:bg-gray-100 border border-gray-300 hover:border-gray-400'
+                    }`}
+                  >
+                    <span className="text-lg">👤</span>
+                    <span 
+                      className={`text-sm font-medium transition-colors ${
+                        showScrollSearch || showCompactSearch 
+                          ? 'text-gray-700' 
+                          : 'text-gray-800'
+                      }`}
+                    >
+                      {userSession.name || 'Account'}
+                    </span>
+                    <ChevronDown className="h-4 w-4 text-gray-400" />
+                  </button>
+
+                  {/* Account Dropdown */}
+                  {showAccountMenu && (
+                    <div className="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-lg border border-gray-200 py-1 z-50">
+                      <Link
+                        href="/my-bookings"
+                        className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                        onClick={() => setShowAccountMenu(false)}
+                      >
+                        My Bookings
+                      </Link>
+                      <Link
+                        href="/client-dashboard"
+                        className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                        onClick={() => setShowAccountMenu(false)}
+                      >
+                        Dashboard
+                      </Link>
+                      <hr className="my-1" />
+                      <button
+                        onClick={() => {
+                          localStorage.removeItem('clientSession');
+                          setUserSession(null);
+                          setShowAccountMenu(false);
+                        }}
+                        className="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                      >
+                        Sign Out
+                      </button>
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <Link
+                  href="/client-dashboard"
+                  className={`flex items-center space-x-2 px-4 py-2.5 rounded-lg transition-all duration-200 ${
                     showScrollSearch || showCompactSearch 
-                      ? 'text-gray-700' 
-                      : 'text-gray-800'
+                      ? 'hover:bg-gray-100 border border-gray-200 hover:border-gray-300' 
+                      : 'hover:bg-gray-100 border border-gray-300 hover:border-gray-400'
                   }`}
                 >
-                  Account
-                </span>
-              </button>
+                  <span className="text-lg">👤</span>
+                  <span 
+                    className={`text-sm font-medium transition-colors ${
+                      showScrollSearch || showCompactSearch 
+                        ? 'text-gray-700' 
+                        : 'text-gray-800'
+                    }`}
+                  >
+                    Sign In
+                  </span>
+                </Link>
+              )}
             </div>
           </div>
 
@@ -190,9 +268,9 @@ export default function Navbar({ showCompactSearch = false }) {
               }`}
             >
               {isMenuOpen ? (
-                <XMarkIcon className="h-6 w-6" />
+                <X className="h-6 w-6" />
               ) : (
-                <Bars3Icon className="h-6 w-6" />
+                <Menu className="h-6 w-6" />
               )}
             </button>
           </div>
@@ -205,7 +283,7 @@ export default function Navbar({ showCompactSearch = false }) {
               {/* Location Input */}
               <div className="relative">
                 <div className="flex items-center h-10 rounded-lg px-3" style={{ border: '1px solid #e5e7eb', background: 'white', boxShadow: '0 1px 3px rgba(0, 0, 0, 0.06)' }}>
-                  <MapPinIcon className="h-4 w-4 text-gray-400 flex-shrink-0" />
+                  <MapPin className="h-4 w-4 text-gray-400 flex-shrink-0" />
                   <input
                     type="text"
                     placeholder="Location"
@@ -220,7 +298,7 @@ export default function Navbar({ showCompactSearch = false }) {
               {/* Service Input with Button */}
               <div className="relative flex items-center space-x-3">
                 <div className="flex-1 flex items-center h-10 rounded-lg px-3" style={{ border: '1px solid #e5e7eb', background: 'white', boxShadow: '0 1px 3px rgba(0, 0, 0, 0.06)' }}>
-                  <MagnifyingGlassIcon className="h-4 w-4 text-gray-400 flex-shrink-0" />
+                  <Search className="h-4 w-4 text-gray-400 flex-shrink-0" />
                   <input
                     type="text"
                     placeholder="Search salons, services..."

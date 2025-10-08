@@ -2,7 +2,8 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { MagnifyingGlassIcon, MapPinIcon, SparklesIcon } from '@heroicons/react/24/outline';
+import Link from 'next/link';
+import { Search, MapPin, Sparkles, ArrowRight } from 'lucide-react';
 import { getUserLocation, setUserLocation } from '@/utils/searchUtils';
 
 export default function HeroSection() {
@@ -12,11 +13,12 @@ export default function HeroSection() {
   const [isSearching, setIsSearching] = useState(false);
 
   useEffect(() => {
-    // Load saved location on component mount
+    // Only load saved location if user has explicitly saved one
     const savedLocation = getUserLocation();
-    if (savedLocation && savedLocation !== 'Current Location') {
+    if (savedLocation && savedLocation.trim()) {
       setLocation(savedLocation);
     }
+    // Otherwise leave location field empty for user to enter
   }, []);
 
   const handleSearch = (queryOverride = null) => {
@@ -99,7 +101,7 @@ export default function HeroSection() {
                     📍 Near You
                   </label>
                   <div className="relative">
-                    <MapPinIcon className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 z-10 text-gray-400" />
+                    <MapPin className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 z-10 text-gray-400" />
                     <input
                       type="text"
                       placeholder="Your location"
@@ -109,6 +111,18 @@ export default function HeroSection() {
                       className="w-full h-10 pl-10 pr-3 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent bg-gray-50 focus:bg-white transition-all"
                     />
                   </div>
+                  {/* Popular locations for India */}
+                  <div className="mt-2 flex flex-wrap gap-1">
+                    {['Pune, Maharashtra', 'Ludhiana, Punjab', 'Mumbai', 'Delhi', 'Bangalore'].map((city) => (
+                      <button
+                        key={city}
+                        onClick={() => setLocation(city)}
+                        className="px-2 py-1 text-xs bg-gray-100 hover:bg-gray-200 rounded-full transition-colors"
+                      >
+                        {city}
+                      </button>
+                    ))}
+                  </div>
                 </div>
 
                 {/* Search Input */}
@@ -117,7 +131,7 @@ export default function HeroSection() {
                     🔍 Search
                   </label>
                   <div className="relative">
-                    <MagnifyingGlassIcon className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 z-10 text-gray-400" />
+                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 z-10 text-gray-400" />
                     <input
                       type="text"
                       placeholder="Search salons or services..."
@@ -189,6 +203,17 @@ export default function HeroSection() {
               </div>
             </div>
           )}
+
+          {/* Booking Status Link */}
+          <div className="mt-6">
+            <Link 
+              href="/booking-status" 
+              className="inline-flex items-center text-sm text-blue-600 hover:text-blue-700 font-medium group"
+            >
+              <span>Already have a booking? Check status</span>
+              <ArrowRight className="h-4 w-4 ml-1 group-hover:translate-x-1 transition-transform" />
+            </Link>
+          </div>
 
         </div>
       </div>

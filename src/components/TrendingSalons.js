@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import SalonCard from './SalonCard';
-import { FireIcon, StarIcon, ArrowTrendingUpIcon } from '@heroicons/react/24/solid';
+import { Flame, Star, TrendingUp } from 'lucide-react';
 
 export default function TrendingSalons() {
   const [isVisible, setIsVisible] = useState(false);
@@ -16,19 +16,19 @@ export default function TrendingSalons() {
     {
       id: 'trending',
       label: 'Trending Now',
-      icon: <ArrowTrendingUpIcon className="h-4 w-4" />,
+      icon: <TrendingUp className="h-4 w-4" />,
       badge: 'HOT'
     },
     {
       id: 'popular',
       label: 'Most Booked',
-      icon: <FireIcon className="h-4 w-4" />,
+      icon: <Flame className="h-4 w-4" />,
       badge: 'POPULAR'
     },
     {
       id: 'rated',
       label: 'Top Rated',
-      icon: <StarIcon className="h-4 w-4" />,
+      icon: <Star className="h-4 w-4 fill-current" />,
       badge: 'BEST'
     }
   ];
@@ -41,7 +41,7 @@ export default function TrendingSalons() {
         image: "/api/placeholder/280/180",
         rating: 4.8,
         reviewCount: 127,
-        price: "$$$",
+        price: "₹₹₹",
         services: ["Hair", "Facial", "Microblading"],
         address: "Downtown Plaza",
         distance: "0.3 miles",
@@ -56,7 +56,7 @@ export default function TrendingSalons() {
         image: "/api/placeholder/280/180",
         rating: 4.9,
         reviewCount: 89,
-        price: "$$$$",
+        price: "₹₹₹₹",
         services: ["Massage", "Facial", "Body Wrap"],
         address: "Wellness District",
         distance: "0.8 miles",
@@ -70,7 +70,7 @@ export default function TrendingSalons() {
         image: "/api/placeholder/280/180",
         rating: 4.7,
         reviewCount: 156,
-        price: "$$",
+        price: "₹₹",
         services: ["Hair", "Color", "Extensions"],
         address: "Fashion Avenue",
         distance: "1.1 miles",
@@ -84,7 +84,7 @@ export default function TrendingSalons() {
         image: "/api/placeholder/280/180",
         rating: 4.6,
         reviewCount: 93,
-        price: "$$",
+        price: "₹₹",
         services: ["Nails", "Nail Art", "Gel"],
         address: "Creative Quarter",
         distance: "1.5 miles",
@@ -101,7 +101,7 @@ export default function TrendingSalons() {
         image: "/api/placeholder/280/180",
         rating: 4.8,
         reviewCount: 203,
-        price: "$$$",
+        price: "₹₹₹",
         services: ["Hair", "Color", "Keratin"],
         address: "Business District",
         distance: "0.6 miles",
@@ -115,7 +115,7 @@ export default function TrendingSalons() {
         image: "/api/placeholder/280/180",
         rating: 4.9,
         reviewCount: 178,
-        price: "$$$$",
+        price: "₹₹₹₹",
         services: ["Spa", "Massage", "Facial"],
         address: "Luxury Row",
         distance: "1.2 miles",
@@ -129,7 +129,7 @@ export default function TrendingSalons() {
         image: "/api/placeholder/280/180",
         rating: 4.5,
         reviewCount: 245,
-        price: "$$",
+        price: "₹₹",
         services: ["Hair", "Blowout", "Styling"],
         address: "Express Lane",
         distance: "0.9 miles",
@@ -143,7 +143,7 @@ export default function TrendingSalons() {
         image: "/api/placeholder/280/180",
         rating: 4.7,
         reviewCount: 167,
-        price: "$$",
+        price: "₹₹",
         services: ["Nails", "Pedicure", "Waxing"],
         address: "Main Street",
         distance: "0.4 miles",
@@ -159,7 +159,7 @@ export default function TrendingSalons() {
         image: "/api/placeholder/280/180",
         rating: 5.0,
         reviewCount: 87,
-        price: "$$$$",
+        price: "₹₹₹₹",
         services: ["Hair", "Color", "Styling"],
         address: "Premium Plaza",
         distance: "1.8 miles",
@@ -173,7 +173,7 @@ export default function TrendingSalons() {
         image: "/api/placeholder/280/180",
         rating: 4.9,
         reviewCount: 134,
-        price: "$$$",
+        price: "₹₹₹",
         services: ["Spa", "Massage", "Aromatherapy"],
         address: "Zen Gardens",
         distance: "2.1 miles",
@@ -187,7 +187,7 @@ export default function TrendingSalons() {
         image: "/api/placeholder/280/180",
         rating: 4.9,
         reviewCount: 112,
-        price: "$$$",
+        price: "₹₹₹",
         services: ["Hair", "Creative Color", "Cuts"],
         address: "Artist Quarter",
         distance: "1.6 miles",
@@ -202,7 +202,7 @@ export default function TrendingSalons() {
         image: "/api/placeholder/280/180",
         rating: 4.8,
         reviewCount: 98,
-        price: "$$$",
+        price: "₹₹₹",
         services: ["Nails", "Luxury Pedicure", "Nail Art"],
         address: "Boutique Row",
         distance: "1.3 miles",

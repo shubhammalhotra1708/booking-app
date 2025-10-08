@@ -1,8 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { ChevronLeftIcon, ChevronRightIcon, StarIcon } from '@heroicons/react/24/solid';
-import { ChatBubbleLeftRightIcon } from '@heroicons/react/24/outline';
+import { ChevronLeft, ChevronRight, Star, MessageCircle } from 'lucide-react';
 
 export default function CustomerTestimonials() {
   const [isVisible, setIsVisible] = useState(false);
@@ -123,7 +122,7 @@ export default function CustomerTestimonials() {
                     <div className="flex justify-center items-center mb-4">
                       <div className="flex items-center space-x-1 bg-yellow-50 px-3 py-1 rounded-full">
                         {[...Array(testimonial.rating)].map((_, i) => (
-                          <StarIcon key={i} className="h-4 w-4 text-yellow-400" />
+                          <Star key={i} className="h-4 w-4 text-yellow-400 fill-current" />
                         ))}
                       </div>
                     </div>
@@ -164,13 +163,13 @@ export default function CustomerTestimonials() {
             onClick={prevSlide}
             className="absolute left-4 top-1/2 -translate-y-1/2 bg-white rounded-full p-3 shadow-lg hover:shadow-xl transition-all duration-200 hover:scale-110 border border-gray-100"
           >
-            <ChevronLeftIcon className="h-5 w-5 text-gray-600" />
+            <ChevronLeft className="h-5 w-5 text-gray-600" />
           </button>
           <button
             onClick={nextSlide}
             className="absolute right-4 top-1/2 -translate-y-1/2 bg-white rounded-full p-3 shadow-lg hover:shadow-xl transition-all duration-200 hover:scale-110 border border-gray-100"
           >
-            <ChevronRightIcon className="h-5 w-5 text-gray-600" />
+            <ChevronRight className="h-5 w-5 text-gray-600" />
           </button>
         </div>
 

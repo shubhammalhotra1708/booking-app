@@ -2,12 +2,15 @@
 
 import { useState } from 'react';
 import SalonCard from './SalonCard';
-import { FunnelIcon, Squares2X2Icon, ListBulletIcon } from '@heroicons/react/24/outline';
+import { Filter, Grid, List } from 'lucide-react';
 
-export default function SalonGrid({ salons, onOpenFilters }) {
+export default function SalonGrid({ salons, onOpenFilters, error, isLoading: externalLoading }) {
   const [viewMode, setViewMode] = useState('grid'); // 'grid' or 'list'
   const [sortBy, setSortBy] = useState('recommended');
   const [isLoading, setIsLoading] = useState(false);
+  
+  // Use external loading state if provided, otherwise use internal
+  const loading = externalLoading || isLoading;
 
   const sortOptions = [
     { value: 'recommended', label: 'Recommended' },
@@ -33,7 +36,7 @@ export default function SalonGrid({ salons, onOpenFilters }) {
             onClick={onOpenFilters}
             className="btn-secondary flex items-center"
           >
-            <FunnelIcon className="h-5 w-5 mr-2" />
+            <Filter className="h-5 w-5 mr-2" />
             Filters
           </button>
 
@@ -76,7 +79,7 @@ export default function SalonGrid({ salons, onOpenFilters }) {
                 color: viewMode === 'grid' ? 'white' : 'var(--foreground-secondary)'
               }}
             >
-              <Squares2X2Icon className="h-5 w-5" />
+              <Grid className="h-5 w-5" />
             </button>
             <button
               onClick={() => setViewMode('list')}
@@ -90,14 +93,32 @@ export default function SalonGrid({ salons, onOpenFilters }) {
                 color: viewMode === 'list' ? 'white' : 'var(--foreground-secondary)'
               }}
             >
-              <ListBulletIcon className="h-5 w-5" />
+              <List className="h-5 w-5" />
             </button>
           </div>
         </div>
       </div>
 
       {/* Salon Grid/List */}
-      {isLoading ? (
+      {error ? (
+        <div className="text-center py-20">
+          <div className="max-w-md mx-auto">
+            <div className="mb-6">
+              <svg className="mx-auto h-24 w-24 text-red-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.732-.833-2.5 0L4.268 16.5c-.77.833.192 2.5 1.732 2.5z" />
+              </svg>
+            </div>
+            <h3 className="text-xl font-semibold text-gray-900 mb-2">Something went wrong</h3>
+            <p className="text-gray-600 mb-6">{error}</p>
+            <button 
+              onClick={() => window.location.reload()}
+              className="px-6 py-3 bg-teal-600 text-white rounded-lg hover:bg-teal-700 transition-colors font-medium"
+            >
+              Try Again
+            </button>
+          </div>
+        </div>
+      ) : loading ? (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-6">
           {[...Array(8)].map((_, index) => (
             <div key={index} className="bg-white rounded-2xl overflow-hidden border border-gray-200 animate-pulse">
@@ -123,6 +144,32 @@ export default function SalonGrid({ salons, onOpenFilters }) {
               </div>
             </div>
           ))}
+        </div>
+      ) : salons.length === 0 ? (
+        <div className="text-center py-20">
+          <div className="max-w-md mx-auto">
+            <div className="mb-6">
+              <svg className="mx-auto h-24 w-24 text-gray-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+              </svg>
+            </div>
+            <h3 className="text-xl font-semibold text-gray-900 mb-2">No salons found</h3>
+            <p className="text-gray-600 mb-6">We couldn't find any salons matching your criteria. Try adjusting your filters or search terms.</p>
+            <div className="space-y-3">
+              <button 
+                onClick={() => window.location.reload()}
+                className="w-full px-6 py-3 bg-teal-600 text-white rounded-lg hover:bg-teal-700 transition-colors font-medium"
+              >
+                Refresh Results
+              </button>
+              <button 
+                onClick={() => {/* Reset all filters */}}
+                className="w-full px-6 py-3 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors font-medium"
+              >
+                Clear All Filters
+              </button>
+            </div>
+          </div>
         </div>
       ) : viewMode === 'grid' ? (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-6">

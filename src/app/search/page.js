@@ -3,49 +3,121 @@
 import { useState, useEffect } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { MagnifyingGlassIcon, MapPinIcon, ArrowLeftIcon } from '@heroicons/react/24/outline';
+import { Search, MapPin, ArrowLeft } from 'lucide-react';
+import { useSearch } from '@/hooks/useApi';
+// Keep as fallback
 import { searchSalonsAndServices, getUserLocation } from '@/utils/searchUtils';
 import SalonCard from '@/components/SalonCard';
 import Navbar from '@/components/Navbar';
+import { ConnectionError, EmptyState, LoadingSkeleton } from '@/components/ErrorStates';
 
 export default function SearchResults() {
   const searchParams = useSearchParams();
   const router = useRouter();
-  const [results, setResults] = useState([]);
-  const [isLoading, setIsLoading] = useState(true);
   const [query, setQuery] = useState('');
   const [location, setLocation] = useState('');
+  const [salons, setSalons] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+
+  // Load all salons by default, then filter based on search
+  useEffect(() => {
+    const loadAllSalons = async () => {
+      try {
+        setLoading(true);
+        // Simple API call without complex filters for speed
+        const response = await fetch('/api/shops?limit=20');
+        const result = await response.json();
+        
+        if (result.success && result.data) {
+          setSalons(result.data);
+        } else {
+          setError('Failed to load salons');
+        }
+      } catch (err) {
+        // Only log in development mode
+        if (process.env.NODE_ENV === 'development') {
+          console.error('Failed to load salons:', err);
+        }
+        setError('Unable to connect to salon directory. Please try again later.');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadAllSalons();
+  }, []);
 
   useEffect(() => {
     const searchQuery = searchParams.get('q') || '';
-    const searchLocation = searchParams.get('location') || getUserLocation();
+    const searchLocation = searchParams.get('location') || '';
     
     setQuery(searchQuery);
     setLocation(searchLocation);
-
-    if (searchQuery) {
-      setIsLoading(true);
-      // Simulate API delay
-      setTimeout(() => {
-        const searchResults = searchSalonsAndServices(searchQuery, searchLocation);
-        setResults(searchResults);
-        setIsLoading(false);
-      }, 500);
-    } else {
-      setResults([]);
-      setIsLoading(false);
-    }
   }, [searchParams]);
 
+  // Elastic search function with fuzzy matching
+  const elasticSearch = (searchTerm, salons) => {
+    if (!searchTerm.trim()) return salons;
+    
+    const searchWords = searchTerm.toLowerCase().split(' ').filter(word => word.length > 0);
+    
+    return salons.map(salon => {
+      let score = 0;
+      const salonName = salon.name.toLowerCase();
+      const salonAbout = (salon.about || '').toLowerCase();
+      const salonAddress = (salon.address || '').toLowerCase();
+      
+      searchWords.forEach(word => {
+        // Exact match gets highest score
+        if (salonName.includes(word)) score += 10;
+        if (salonAbout.includes(word)) score += 5;
+        if (salonAddress.includes(word)) score += 3;
+        
+        // Fuzzy matching for typos (simple character substitution)
+        if (word.length >= 3) {
+          // Check if salon name contains most characters of the search word
+          const matchingChars = word.split('').filter(char => salonName.includes(char)).length;
+          if (matchingChars >= Math.ceil(word.length * 0.7)) {
+            score += 3; // Fuzzy match bonus
+          }
+          
+          // Check for reversed characters (sm-shop should match ms-shop)
+          const reversedWord = word.split('').reverse().join('');
+          if (salonName.includes(reversedWord)) score += 8;
+          
+          // Check for missing hyphens/spaces (smshop should match sm-shop)
+          const spacedWord = word.replace(/[-\s]/g, '');
+          const spacedSalon = salonName.replace(/[-\s]/g, '');
+          if (spacedSalon.includes(spacedWord) || spacedWord.includes(spacedSalon)) {
+            score += 7;
+          }
+        }
+      });
+      
+      return { ...salon, searchScore: score };
+    })
+    .filter(salon => salon.searchScore > 0)
+    .sort((a, b) => b.searchScore - a.searchScore);
+  };
+
+  // Filter salons using elastic search
+  const filteredSalons = elasticSearch(query, salons);
+
+  const results = filteredSalons;
+  const isLoading = loading;
+  const apiError = error;
+
   const handleNewSearch = () => {
+    const params = new URLSearchParams();
     if (query.trim()) {
-      const params = new URLSearchParams();
       params.set('q', query.trim());
-      if (location.trim()) {
-        params.set('location', location.trim());
-      }
-      router.push(`/search?${params.toString()}`);
     }
+    if (location.trim()) {
+      params.set('location', location.trim());
+    }
+    const queryString = params.toString();
+    router.push(queryString ? `/search?${queryString}` : '/search');
   };
 
   const handleKeyPress = (e) => {
@@ -66,7 +138,7 @@ export default function SearchResults() {
               href="/"
               className="flex items-center text-gray-600 hover:text-gray-900 mr-4"
             >
-              <ArrowLeftIcon className="h-5 w-5 mr-1" />
+              <ArrowLeft className="h-5 w-5 mr-1" />
               Back to Home
             </Link>
           </div>
@@ -81,7 +153,7 @@ export default function SearchResults() {
                     📍 Location
                   </label>
                   <div className="relative">
-                    <MapPinIcon className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+                    <MapPin className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
                     <input
                       type="text"
                       placeholder="Near you"
@@ -91,6 +163,18 @@ export default function SearchResults() {
                       className="w-full h-10 pl-10 pr-3 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent"
                     />
                   </div>
+                  {/* Popular locations */}
+                  <div className="mt-2 flex flex-wrap gap-1">
+                    {['Pune, Maharashtra', 'Ludhiana, Punjab', 'Mumbai', 'Delhi', 'Bangalore'].map((city) => (
+                      <button
+                        key={city}
+                        onClick={() => setLocation(city)}
+                        className="px-2 py-1 text-xs bg-gray-100 hover:bg-gray-200 rounded-full transition-colors"
+                      >
+                        {city}
+                      </button>
+                    ))}
+                  </div>
                 </div>
 
                 {/* Search Input */}
@@ -99,7 +183,7 @@ export default function SearchResults() {
                     🔍 Search
                   </label>
                   <div className="relative">
-                    <MagnifyingGlassIcon className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
                     <input
                       type="text"
                       placeholder="Search salons or services..."
@@ -129,14 +213,11 @@ export default function SearchResults() {
             <div className="text-center mb-6">
               {query ? (
                 <h1 className="text-2xl font-bold text-gray-900 mb-2">
-                  Search Results for "{query}"
-                  {location && location !== 'Current Location' && (
-                    <span className="text-gray-600"> near {location}</span>
-                  )}
+                  {results.length} results for "{query}"
                 </h1>
               ) : (
                 <h1 className="text-2xl font-bold text-gray-900 mb-2">
-                  Search Salons & Services
+                  All Salons ({results.length})
                 </h1>
               )}
               
@@ -150,24 +231,22 @@ export default function SearchResults() {
         </div>
 
         {/* Loading State */}
-        {isLoading && (
-          <div className="flex items-center justify-center py-12">
-            <div className="text-center">
-              <div className="animate-spin rounded-full h-8 w-8 border-2 border-sky-500 border-t-transparent mx-auto mb-4"></div>
-              <p className="text-gray-600">Searching...</p>
-            </div>
-          </div>
+        {isLoading && <LoadingSkeleton count={6} type="card" />}
+
+        {/* API Error State */}
+        {!isLoading && apiError && (
+          <ConnectionError onRetry={() => search(query, location)} />
         )}
 
         {/* Results */}
-        {!isLoading && query && (
+        {!isLoading && !apiError && query && (
           <div>
             {results.length > 0 ? (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-                {results.map((result, index) => (
-                  <div key={index}>
+                {results.filter(Boolean).map((result, index) => (
+                  <div key={result.id || index}>
                     <SalonCard 
-                      salon={result.salon} 
+                      salon={result} 
                       showStatusBadge={false}
                       showSpecialOffer={false}
                       showDetailsButton={false}
@@ -176,68 +255,37 @@ export default function SearchResults() {
                 ))}
               </div>
             ) : (
-              <div className="text-center py-12">
-                <div className="max-w-md mx-auto">
-                  <MagnifyingGlassIcon className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-                  <h3 className="text-lg font-medium text-gray-900 mb-2">No results found</h3>
-                  <p className="text-gray-600 mb-4">
-                    We couldn't find any salons or services matching "{query}". 
-                    Try searching with different keywords.
-                  </p>
-                  <div className="text-sm text-gray-500">
-                    <p className="mb-2">Try searching for:</p>
-                    <div className="flex flex-wrap gap-2 justify-center">
-                      {['Hair Cut', 'Facial', 'Massage', 'Manicure', 'Spa'].map((suggestion) => (
-                        <button
-                          key={suggestion}
-                          onClick={() => {
-                            setQuery(suggestion);
-                            const params = new URLSearchParams();
-                            params.set('q', suggestion);
-                            if (location.trim()) params.set('location', location.trim());
-                            router.push(`/search?${params.toString()}`);
-                          }}
-                          className="px-3 py-1 bg-gray-100 text-gray-700 rounded-full hover:bg-gray-200 transition-colors"
-                        >
-                          {suggestion}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                </div>
-              </div>
+              <EmptyState
+                title="No results found"
+                message={`We couldn't find any salons matching "${query}". Try searching with different keywords.`}
+                suggestions={['Hair Cut', 'Facial', 'Massage', 'Manicure', 'Spa']}
+                onSuggestionClick={(suggestion) => {
+                  setQuery(suggestion);
+                  const params = new URLSearchParams();
+                  params.set('q', suggestion);
+                  if (location.trim()) params.set('location', location.trim());
+                  router.push(`/search?${params.toString()}`);
+                }}
+              />
             )}
           </div>
         )}
 
         {/* No Query State */}
         {!isLoading && !query && (
-          <div className="text-center py-12">
-            <MagnifyingGlassIcon className="h-16 w-16 text-gray-300 mx-auto mb-4" />
-            <h3 className="text-xl font-medium text-gray-900 mb-2">Find Your Perfect Salon</h3>
-            <p className="text-gray-600 mb-6">Search for salons, services, or browse by location</p>
-            
-            <div className="max-w-md mx-auto">
-              <p className="text-sm font-medium text-gray-700 mb-3">Popular searches:</p>
-              <div className="flex flex-wrap gap-2 justify-center">
-                {['Hair Cut', 'Hair Color', 'Facial', 'Massage', 'Manicure', 'Spa', 'Eyebrow Threading'].map((suggestion) => (
-                  <button
-                    key={suggestion}
-                    onClick={() => {
-                      setQuery(suggestion);
-                      const params = new URLSearchParams();
-                      params.set('q', suggestion);
-                      if (location.trim()) params.set('location', location.trim());
-                      router.push(`/search?${params.toString()}`);
-                    }}
-                    className="px-4 py-2 bg-white text-gray-700 rounded-full border hover:bg-gray-50 transition-colors text-sm"
-                  >
-                    {suggestion}
-                  </button>
-                ))}
-              </div>
-            </div>
-          </div>
+          <EmptyState
+            title="Find Your Perfect Salon"
+            message="Search for salons, services, or browse by location"
+            suggestions={['Hair Cut', 'Hair Color', 'Facial', 'Massage', 'Manicure', 'Spa', 'Eyebrow Threading']}
+            onSuggestionClick={(suggestion) => {
+              setQuery(suggestion);
+              const params = new URLSearchParams();
+              params.set('q', suggestion);
+              if (location.trim()) params.set('location', location.trim());
+              router.push(`/search?${params.toString()}`);
+            }}
+            showSearchButton={false}
+          />
         )}
       </div>
     </div>
