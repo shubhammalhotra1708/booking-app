@@ -97,33 +97,6 @@ export default function BookingSuccess() {
             <p className="text-sm text-blue-700 mt-2">
               📝 Save this ID to check your booking status anytime
             </p>
-            <div className="mt-4 flex justify-center space-x-3">
-              <button 
-                onClick={() => navigator.clipboard.writeText(`#${String(booking.id).padStart(6, '0')}`)}
-                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm font-medium"
-              >
-                Copy Booking ID
-              </button>
-              <button 
-                onClick={() => window.print()}
-                className="px-4 py-2 border border-blue-600 text-blue-600 rounded-lg hover:bg-blue-50 transition-colors text-sm font-medium"
-              >
-                Print Receipt
-              </button>
-            </div>
-          </div>
-        </div>
-
-        {/* Email Notification Status */}
-        <div className="bg-green-50 rounded-lg p-4 mb-6">
-          <div className="flex items-center">
-            <Mail className="h-5 w-5 text-green-600 mr-3" />
-            <div>
-              <p className="text-green-800 font-medium">Confirmation email sent!</p>
-              <p className="text-green-700 text-sm">
-                {booking.customer_email ? `Check your inbox at ${booking.customer_email}` : 'We will send SMS confirmation to your phone'}
-              </p>
-            </div>
           </div>
         </div>
 

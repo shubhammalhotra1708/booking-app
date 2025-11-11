@@ -157,6 +157,16 @@ export default function Navbar({ showCompactSearch = false }) {
           {/* Desktop Navigation Links */}
           <div className="hidden md:flex items-center space-x-8">
             <Link 
+              href="/my-bookings" 
+              className={`text-sm font-medium transition-colors ${
+                showScrollSearch || showCompactSearch 
+                  ? 'text-gray-700 hover:text-gray-900' 
+                  : 'text-gray-800 hover:text-gray-900'
+              }`}
+            >
+              My Bookings
+            </Link>
+            <Link 
               href="/business" 
               className={`text-sm font-medium transition-colors ${
                 showScrollSearch || showCompactSearch 

@@ -4,22 +4,13 @@
 export const transformShopData = (apiShop) => {
   if (!apiShop) return null;
   
-  // Use uploaded images if available, otherwise fallback to default
-  let shopImages = [];
-  if (apiShop.images && Array.isArray(apiShop.images) && apiShop.images.length > 0) {
-    // Use uploaded images
-    shopImages = apiShop.images.map(img => img.url || img);
-  } else {
-    // Fallback to default images
-    const mainImage = apiShop.image || '/s1.jpeg';
-    shopImages = [mainImage, '/s2.jpeg', '/s3.jpeg'];
-  }
+  const mainImage = apiShop.image || '/s1.jpeg';
   
   return {
     id: apiShop.id,
     name: apiShop.name || 'Unnamed Salon',
-    image: shopImages[0], // First image as main image
-    images: shopImages,
+    image: mainImage,
+    images: [mainImage, '/s2.jpeg', '/s3.jpeg'], // Create array with main image and fallbacks
     rating: apiShop.rating || 4.5,
     reviewCount: apiShop.review_count || 0,
     price: transformPriceRange(apiShop.price_range),

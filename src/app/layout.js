@@ -1,6 +1,5 @@
 import { Inter } from "next/font/google";
 import "./globals.css";
-import { ToastProvider } from "../contexts/ToastContext";
 
 const inter = Inter({
   subsets: ["latin"],
@@ -17,9 +16,7 @@ export default function RootLayout({ children }) {
   return (
     <html lang="en" className={inter.variable}>
       <body className="font-sans antialiased bg-gray-50">
-        <ToastProvider>
-          {children}
-        </ToastProvider>
+        {children}
       </body>
     </html>
   );

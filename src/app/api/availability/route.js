@@ -87,9 +87,7 @@ export async function GET(request) {
       }
 
       availableStaff = [specificStaff];
-      if (process.env.NODE_ENV === 'development') {
-        // Found specific staff member
-      }
+      console.log('Found specific staff:', specificStaff);
     } else {
       // Get all staff (simplified for MVP - assume all staff can do all services)
       const { data: allStaff, error: allStaffError } = await supabase
@@ -126,22 +124,19 @@ export async function GET(request) {
       .eq('shop_id', shop_id)
       .in('status', ['pending', 'confirmed']);
 
-    if (bookingsError && process.env.NODE_ENV === 'development') {
+    if (bookingsError) {
       console.error('Error fetching bookings:', bookingsError);
     }
     
-    if (process.env.NODE_ENV === 'development') {
-      // Retrieved existing bookings for date validation
-    }
+    console.log('Existing bookings for', date, ':', existingBookings);
 
-    // Generate ALL time slots (available and blocked) with current time filtering
+    // Generate ALL time slots (available and blocked)
     const allSlots = generateAvailableSlots(
       dayHours.open,
       dayHours.close,
       service.duration,
       availableStaff,
-      existingBookings || [],
-      date // Pass the date for current time filtering
+      existingBookings || []
     );
 
     // If a specific staff was selected, filter and modify slots for that staff
@@ -221,28 +216,15 @@ export async function GET(request) {
 }
 
 // Helper function to generate ALL time slots with availability status
-function generateAvailableSlots(openTime, closeTime, serviceDuration, staff, existingBookings, date) {
+function generateAvailableSlots(openTime, closeTime, serviceDuration, staff, existingBookings) {
   const slots = [];
   const slotInterval = 30; // 30-minute intervals
   
   // Convert times to minutes for easier calculation
-  let openMinutes = timeToMinutes(openTime);
+  const openMinutes = timeToMinutes(openTime);
   const closeMinutes = timeToMinutes(closeTime);
   
-  // Filter out past time slots for today only
-  const today = new Date();
-  const requestedDate = new Date(date);
-  const isToday = requestedDate.toDateString() === today.toDateString();
-  
-  if (isToday) {
-    // Get current time in minutes (add 30min buffer for booking preparation)
-    const currentMinutes = today.getHours() * 60 + today.getMinutes() + 30;
-    // Start from the later of shop opening time or current time
-    openMinutes = Math.max(openMinutes, currentMinutes);
-    
-    // Round up to next 30-minute slot
-    openMinutes = Math.ceil(openMinutes / slotInterval) * slotInterval;
-  }
+  // For real-time filtering, use currentMinutes + 15 (not +30) for booking preparation buffer
   
   // Generate ALL time slots (both available and blocked)
   for (let time = openMinutes; time <= closeMinutes - serviceDuration; time += slotInterval) {

@@ -12,13 +12,11 @@ export async function requireAuth(request, options = {}) {
     const { data: { user }, error: authError } = await supabase.auth.getUser();
     
     if (authError) {
-      if (process.env.NODE_ENV === 'development') {
-        console.error('Auth error:', authError);
-      }
+      console.error('Auth error:', authError);
       return {
         success: false,
         response: NextResponse.json(
-          createErrorResponse('Authentication failed', 401),
+          createErrorResponse('Authentication failed', 401, authError.message),
           { status: 401 }
         )
       };
@@ -46,13 +44,11 @@ export async function requireAuth(request, options = {}) {
       user
     };
   } catch (error) {
-    if (process.env.NODE_ENV === 'development') {
-      console.error('Auth middleware error:', error);
-    }
+    console.error('Auth middleware error:', error);
     return {
       success: false,
       response: NextResponse.json(
-        createErrorResponse('Authentication error', 500),
+        createErrorResponse('Authentication error', 500, error.message),
         { status: 500 }
       )
     };
@@ -73,9 +69,7 @@ export async function optionalAuth(request) {
       user: error ? null : user
     };
   } catch (error) {
-    if (process.env.NODE_ENV === 'development') {
-      console.error('Optional auth error:', error);
-    }
+    console.error('Optional auth error:', error);
     return {
       success: true,
       user: null

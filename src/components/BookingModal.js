@@ -62,10 +62,8 @@ export default function BookingModal({ isOpen, onClose, salon }) {
         setError('Failed to load services');
       }
     } catch (error) {
-      if (process.env.NODE_ENV === 'development') {
-        console.error('Error fetching services:', error);
-      }
-      setError('Unable to load available services. Please try again.');
+      console.error('Error fetching services:', error);
+      setError('Failed to load services');
     }
   };
 
@@ -79,10 +77,8 @@ export default function BookingModal({ isOpen, onClose, salon }) {
         setError('Failed to load staff');
       }
     } catch (error) {
-      if (process.env.NODE_ENV === 'development') {
-        console.error('Error fetching staff:', error);
-      }
-      setError('Unable to load available staff. Please try again.');
+      console.error('Error fetching staff:', error);
+      setError('Failed to load staff');
     }
   };
 

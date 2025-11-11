@@ -16,17 +16,9 @@ export default function BookingFlow() {
 
   // State
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState(null);
   const [shop, setShop] = useState(null);
   const [service, setService] = useState(null);
-  const [selectedDate, setSelectedDate] = useState(() => {
-    // Ensure we get today's date in the correct timezone
-    const today = new Date();
-    const year = today.getFullYear();
-    const month = String(today.getMonth() + 1).padStart(2, '0');
-    const day = String(today.getDate()).padStart(2, '0');
-    return `${year}-${month}-${day}`;
-  });
+  const [selectedDate, setSelectedDate] = useState('');
   const [selectedSlot, setSelectedSlot] = useState(null);
   const [selectedStaff, setSelectedStaff] = useState(null);
   const [availableSlots, setAvailableSlots] = useState([]);
@@ -41,53 +33,31 @@ export default function BookingFlow() {
   // Load shop and service data
   useEffect(() => {
     const fetchData = async () => {
-      if (!shopId || !serviceId) {
-        setError('Missing booking information. Please start from a salon page.');
-        return;
-      }
+      if (!shopId || !serviceId) return;
       
       try {
-        setLoading(true);
-        setError(null);
-        
         const [shopRes, serviceRes] = await Promise.all([
           fetch(`/api/shops?shop_id=${shopId}`),
           fetch(`/api/services?shop_id=${shopId}&service_id=${serviceId}`)
         ]);
 
-        if (!shopRes.ok || !serviceRes.ok) {
-          throw new Error('Failed to load booking details');
-        }
-
         const shopData = await shopRes.json();
         const serviceData = await serviceRes.json();
 
-        if (!shopData.success || !shopData.data.length) {
-          throw new Error('Salon not found');
+        if (shopData.success && shopData.data.length > 0) {
+          setShop(shopData.data[0]);
         }
 
-        if (!serviceData.success || !serviceData.data.length) {
-          throw new Error('Service not found');
+        if (serviceData.success && serviceData.data.length > 0) {
+          setService(serviceData.data[0]);
         }
-
-        setShop(shopData.data[0]);
-        setService(serviceData.data[0]);
       } catch (error) {
-        setError(error.message || 'Failed to load booking details');
-      } finally {
-        setLoading(false);
+        console.error('Error fetching data:', error);
       }
     };
 
     fetchData();
   }, [shopId, serviceId]);
-
-  // Fetch slots when date is selected on step 1
-  useEffect(() => {
-    if (shopId && serviceId && selectedDate && step === 1) {
-      fetchAvailableSlots(selectedDate);
-    }
-  }, [shopId, serviceId, selectedDate, step]);
 
   // Navigation helpers
   const goToStep = (newStep) => {
@@ -117,15 +87,8 @@ export default function BookingFlow() {
     for (let i = 0; i < 7; i++) {
       const date = new Date(today);
       date.setDate(today.getDate() + i);
-      
-      // Use local date formatting to avoid timezone issues
-      const year = date.getFullYear();
-      const month = String(date.getMonth() + 1).padStart(2, '0');
-      const day = String(date.getDate()).padStart(2, '0');
-      const localDateString = `${year}-${month}-${day}`;
-      
       dates.push({
-        value: localDateString,
+        value: date.toISOString().split('T')[0],
         label: date.toLocaleDateString('en-US', { 
           weekday: 'short', 
           month: 'short', 
@@ -139,50 +102,23 @@ export default function BookingFlow() {
 
   // Fetch available slots
   const fetchAvailableSlots = async (date) => {
-    if (!date || !shopId || !serviceId) {
-      setError('Missing booking details');
-      return;
-    }
-    
-    // Validate parameters before API call
-    const shopIdNum = parseInt(shopId);
-    const serviceIdNum = parseInt(serviceId);
-    
-    if (isNaN(shopIdNum) || isNaN(serviceIdNum)) {
-      setError('Invalid booking parameters');
-      return;
-    }
-    
-    // Validate date format
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
-      setError('Invalid date format');
-      return;
-    }
+    if (!date || !shopId || !serviceId) return;
     
     setLoading(true);
-    setError(null);
-    
     try {
-      const apiUrl = `/api/availability?shop_id=${shopIdNum}&service_id=${serviceIdNum}&date=${date}`;
-      const response = await fetch(apiUrl);
-      
-      if (!response.ok) {
-        throw new Error(`Server error: ${response.status}`);
-      }
-      
+      const response = await fetch(
+        `/api/availability?shop_id=${shopId}&service_id=${serviceId}&date=${date}`
+      );
       const data = await response.json();
       
       if (data.success && data.data?.availableSlots) {
         setAvailableSlots(data.data.availableSlots);
-        if (data.data.availableSlots.length === 0) {
-          setError('No appointment slots available for this date. Please try another date.');
-        }
       } else {
-        setError(data.error || 'Failed to load available appointments');
+        console.error('API Error:', data.error || 'No available slots found');
         setAvailableSlots([]);
       }
     } catch (err) {
-      setError('Unable to connect to booking system. Please check your connection and try again.');
+      console.error('Error fetching slots:', err);
       setAvailableSlots([]);
     } finally {
       setLoading(false);
@@ -276,53 +212,22 @@ export default function BookingFlow() {
         // Redirect to success page
         router.push(`/booking-success?booking_id=${data.data.id}`);
       } else {
-        setError(data.error || 'Failed to create booking. Please try again.');
+        alert('Booking failed: ' + (data.error || 'Unknown error'));
       }
     } catch (error) {
-      setError('Unable to connect to booking system. Please check your connection and try again.');
+      console.error('Booking error:', error);
+      alert('Booking failed: Network error');
     } finally {
       setLoading(false);
     }
   };
 
-  // Show error state
-  if (error && !shop && !service) {
-    return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="text-center max-w-md mx-auto p-6">
-          <div className="mb-6">
-            <svg className="mx-auto h-16 w-16 text-red-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.732-.833-2.5 0L4.268 16.5c-.77.833.192 2.5 1.732 2.5z" />
-            </svg>
-          </div>
-          <h3 className="text-xl font-semibold text-gray-900 mb-2">Unable to Load Booking</h3>
-          <p className="text-gray-600 mb-6">{error}</p>
-          <div className="space-y-3">
-            <button 
-              onClick={() => window.location.reload()}
-              className="w-full px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium"
-            >
-              Try Again
-            </button>
-            <Link 
-              href="/search"
-              className="block w-full px-6 py-3 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors font-medium"
-            >
-              Find Another Salon
-            </Link>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  // Show loading state
   if (!shop || !service) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="text-center">
           <div className="animate-spin h-8 w-8 border-2 border-blue-500 border-t-transparent rounded-full mx-auto"></div>
-          <p className="text-gray-500 mt-2">Loading booking details...</p>
+          <p className="text-gray-500 mt-2">Loading...</p>
         </div>
       </div>
     );
@@ -347,7 +252,7 @@ export default function BookingFlow() {
               </button>
             </div>
             <div className="text-center">
-              <h1 className="text-lg font-semibold">{service.name}</h1>
+              <h1 className="text-lg font-semibold">{service?.name || 'Service'}</h1>
               <p className="text-sm text-gray-600">{shop.name}</p>
             </div>
             <div className="w-24"></div> {/* Spacer */}
@@ -422,22 +327,6 @@ export default function BookingFlow() {
                       </button>
                     ))}
                   </div>
-                ) : error ? (
-                  <div className="text-center py-8 bg-white rounded-lg border border-red-200">
-                    <div className="mb-4">
-                      <svg className="mx-auto h-12 w-12 text-red-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                      </svg>
-                    </div>
-                    <p className="text-red-600 font-medium mb-2">Unable to load appointments</p>
-                    <p className="text-gray-600 text-sm mb-4">{error}</p>
-                    <button 
-                      onClick={() => fetchAvailableSlots(selectedDate)}
-                      className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors text-sm font-medium"
-                    >
-                      Try Again
-                    </button>
-                  </div>
                 ) : (
                   <div className="text-center py-8 text-gray-500 bg-white rounded-lg border">
                     <Calendar className="h-12 w-12 mx-auto mb-2 text-gray-300" />
@@ -458,7 +347,6 @@ export default function BookingFlow() {
               <p className="text-gray-600">Select your preferred staff member</p>
             </div>
 
-            {/* Selected Date & Time Display */}
             <div className="bg-blue-50 p-4 rounded-lg">
               <div className="flex items-center space-x-2 text-sm text-blue-800">
                 <Calendar className="h-4 w-4" />
@@ -468,68 +356,52 @@ export default function BookingFlow() {
               </div>
             </div>
 
-            {/* Staff Selection */}
-            {selectedSlot ? (
-              <div>
-                <div className="space-y-3">
-                  {/* No Preference Option */}
-                  <button
-                    onClick={() => handleStaffSelect(null)}
-                    className="w-full p-4 border-2 border-dashed border-gray-300 rounded-lg hover:bg-gray-50 hover:border-blue-300 transition-all text-left bg-white"
-                  >
-                    <div className="flex items-center space-x-3">
-                      <div className="bg-gray-100 p-2 rounded-full">
-                        <User className="h-5 w-5 text-gray-600" />
-                      </div>
-                      <div>
-                        <div className="font-medium text-gray-900">No Preference</div>
-                        <div className="text-sm text-gray-500">Any available staff member</div>
-                      </div>
-                      <div className="ml-auto">
-                        <div className="text-xs text-blue-600 bg-blue-100 px-2 py-1 rounded-full">
-                          Recommended
-                        </div>
+            <div className="space-y-3">
+              {/* No Preference Option */}
+              <button
+                onClick={() => handleStaffSelect(null)}
+                className="w-full p-4 border-2 border-dashed border-gray-300 rounded-lg hover:bg-gray-50 hover:border-blue-300 transition-all text-left bg-white"
+              >
+                <div className="flex items-center space-x-3">
+                  <div className="bg-gray-100 p-2 rounded-full">
+                    <User className="h-5 w-5 text-gray-600" />
+                  </div>
+                  <div>
+                    <div className="font-medium text-gray-900">No Preference</div>
+                    <div className="text-sm text-gray-500">Any available staff member</div>
+                  </div>
+                  <div className="ml-auto">
+                    <div className="text-xs text-blue-600 bg-blue-100 px-2 py-1 rounded-full">
+                      Recommended
+                    </div>
+                  </div>
+                </div>
+              </button>
+              
+              {/* Staff Options */}
+              {staffForSlot.map((staff) => (
+                <button
+                  key={staff.id}
+                  onClick={() => handleStaffSelect(staff)}
+                  className="w-full p-4 border border-gray-200 rounded-lg hover:bg-gray-50 hover:border-blue-300 transition-all text-left bg-white"
+                >
+                  <div className="flex items-center space-x-3">
+                    <div className="bg-blue-100 p-2 rounded-full">
+                      <User className="h-5 w-5 text-blue-600" />
+                    </div>
+                    <div>
+                      <div className="font-medium text-gray-900">{staff.name}</div>
+                      <div className="text-sm text-gray-500">{typeof service === 'string' ? service : service?.name || 'Service'}</div>
+                    </div>
+                    <div className="ml-auto">
+                      <div className="text-xs text-green-600 bg-green-100 px-2 py-1 rounded-full">
+                        Available
                       </div>
                     </div>
-                  </button>
-                  
-                  {/* Staff Options */}
-                  {staffForSlot.map((staff) => (
-                    <button
-                      key={staff.id}
-                      onClick={() => handleStaffSelect(staff)}
-                      className="w-full p-4 border border-gray-200 rounded-lg hover:bg-gray-50 hover:border-blue-300 transition-all text-left bg-white"
-                    >
-                      <div className="flex items-center space-x-3">
-                        <div className="bg-blue-100 p-2 rounded-full">
-                          <User className="h-5 w-5 text-blue-600" />
-                        </div>
-                        <div>
-                          <div className="font-medium text-gray-900">{staff.name}</div>
-                          <div className="text-sm text-gray-500">{service?.name || 'General Services'}</div>
-                        </div>
-                        <div className="ml-auto">
-                          <div className="text-xs text-green-600 bg-green-100 px-2 py-1 rounded-full">
-                            Available
-                          </div>
-                        </div>
-                      </div>
-                    </button>
-                  ))}
-                </div>
-              </div>
-            ) : (
-              <div className="text-center py-8 text-gray-500 bg-white rounded-lg border">
-                <Clock className="h-12 w-12 mx-auto mb-2 text-gray-300" />
-                <p>Please select a time slot first</p>
-                <button
-                  onClick={() => goToStep(1)}
-                  className="mt-3 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-                >
-                  Go Back to Select Time
+                  </div>
                 </button>
-              </div>
-            )}
+              ))}
+            </div>
           </div>
         )}
 

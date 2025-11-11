@@ -149,10 +149,10 @@ export function validateRequest(schema, data) {
     const validatedData = schema.parse(data);
     return { success: true, data: validatedData };
   } catch (error) {
-    // Only log in development mode
-    if (process.env.NODE_ENV === 'development') {
-      console.error('Validation error:', error.message);
-    }
+    console.error('Validation error caught:', error);
+    console.error('Error type:', typeof error);
+    console.error('Error instanceof z.ZodError:', error instanceof z.ZodError);
+    console.error('Error.errors:', error.errors);
     
     if (error instanceof z.ZodError) {
       return {

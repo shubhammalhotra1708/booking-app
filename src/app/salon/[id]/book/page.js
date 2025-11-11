@@ -8,8 +8,7 @@ import {
   Star, 
   MapPin,
   CheckCircle,
-  Clock,
-  DollarSign
+  Clock
 } from 'lucide-react';
 import { salonDetails } from '@/data/mockData';
 import { useShopDetails } from '@/hooks/useApi';
@@ -55,10 +54,8 @@ export default function BookingPage() {
         }
         
       } catch (err) {
-        if (process.env.NODE_ENV === 'development') {
-          console.log('Error loading salon data:', err);
-        }
-        setError('Unable to load salon services. Please try again later.');
+        console.log('Using mock data due to error:', err);
+        setError('Using sample data');
       } finally {
         setLoading(false);
       }
@@ -231,8 +228,8 @@ export default function BookingPage() {
                             <span>{service.duration} min</span>
                           </div>
                           <div className="flex items-center">
-                            <DollarSign className="w-4 h-4 mr-1" />
-                            <span>₹{service.price}</span>
+                            <span className="mr-1">₹</span>
+                            <span>{service.price}</span>
                           </div>
                         </div>
                       </div>

@@ -59,7 +59,7 @@ export async function POST() {
       .select('*')
       .limit(3)
 
-    // Development logging removed for production
+    console.log('Shop table check:', { existingShops, shopError })
 
     let shopIds = []
     

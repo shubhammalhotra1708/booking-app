@@ -9,7 +9,6 @@ import { useSearch } from '@/hooks/useApi';
 import { searchSalonsAndServices, getUserLocation } from '@/utils/searchUtils';
 import SalonCard from '@/components/SalonCard';
 import Navbar from '@/components/Navbar';
-import { ConnectionError, EmptyState, LoadingSkeleton } from '@/components/ErrorStates';
 
 export default function SearchResults() {
   const searchParams = useSearchParams();
@@ -35,11 +34,8 @@ export default function SearchResults() {
           setError('Failed to load salons');
         }
       } catch (err) {
-        // Only log in development mode
-        if (process.env.NODE_ENV === 'development') {
-          console.error('Failed to load salons:', err);
-        }
-        setError('Unable to connect to salon directory. Please try again later.');
+        console.error('Failed to load salons:', err);
+        setError('Failed to load salons');
       } finally {
         setLoading(false);
       }
@@ -56,53 +52,13 @@ export default function SearchResults() {
     setLocation(searchLocation);
   }, [searchParams]);
 
-  // Elastic search function with fuzzy matching
-  const elasticSearch = (searchTerm, salons) => {
-    if (!searchTerm.trim()) return salons;
-    
-    const searchWords = searchTerm.toLowerCase().split(' ').filter(word => word.length > 0);
-    
-    return salons.map(salon => {
-      let score = 0;
-      const salonName = salon.name.toLowerCase();
-      const salonAbout = (salon.about || '').toLowerCase();
-      const salonAddress = (salon.address || '').toLowerCase();
-      
-      searchWords.forEach(word => {
-        // Exact match gets highest score
-        if (salonName.includes(word)) score += 10;
-        if (salonAbout.includes(word)) score += 5;
-        if (salonAddress.includes(word)) score += 3;
-        
-        // Fuzzy matching for typos (simple character substitution)
-        if (word.length >= 3) {
-          // Check if salon name contains most characters of the search word
-          const matchingChars = word.split('').filter(char => salonName.includes(char)).length;
-          if (matchingChars >= Math.ceil(word.length * 0.7)) {
-            score += 3; // Fuzzy match bonus
-          }
-          
-          // Check for reversed characters (sm-shop should match ms-shop)
-          const reversedWord = word.split('').reverse().join('');
-          if (salonName.includes(reversedWord)) score += 8;
-          
-          // Check for missing hyphens/spaces (smshop should match sm-shop)
-          const spacedWord = word.replace(/[-\s]/g, '');
-          const spacedSalon = salonName.replace(/[-\s]/g, '');
-          if (spacedSalon.includes(spacedWord) || spacedWord.includes(spacedSalon)) {
-            score += 7;
-          }
-        }
-      });
-      
-      return { ...salon, searchScore: score };
-    })
-    .filter(salon => salon.searchScore > 0)
-    .sort((a, b) => b.searchScore - a.searchScore);
-  };
-
-  // Filter salons using elastic search
-  const filteredSalons = elasticSearch(query, salons);
+  // Filter salons based on search query
+  const filteredSalons = query 
+    ? salons.filter(salon => 
+        salon.name.toLowerCase().includes(query.toLowerCase()) ||
+        (salon.about && salon.about.toLowerCase().includes(query.toLowerCase()))
+      )
+    : salons;
 
   const results = filteredSalons;
   const isLoading = loading;
@@ -231,11 +187,27 @@ export default function SearchResults() {
         </div>
 
         {/* Loading State */}
-        {isLoading && <LoadingSkeleton count={6} type="card" />}
+        {isLoading && (
+          <div className="flex items-center justify-center py-12">
+            <div className="text-center">
+              <div className="animate-spin rounded-full h-8 w-8 border-2 border-sky-500 border-t-transparent mx-auto mb-4"></div>
+              <p className="text-gray-600">Searching...</p>
+            </div>
+          </div>
+        )}
 
         {/* API Error State */}
         {!isLoading && apiError && (
-          <ConnectionError onRetry={() => search(query, location)} />
+          <div className="text-center py-12">
+            <div className="text-red-500 mb-4">⚠️ Search Error</div>
+            <p className="text-gray-600 mb-4">{apiError}</p>
+            <button 
+              onClick={() => search(query, location)}
+              className="bg-teal-600 text-white px-4 py-2 rounded-lg hover:bg-teal-700"
+            >
+              Try Again
+            </button>
+          </div>
         )}
 
         {/* Results */}
@@ -255,37 +227,80 @@ export default function SearchResults() {
                 ))}
               </div>
             ) : (
-              <EmptyState
-                title="No results found"
-                message={`We couldn't find any salons matching "${query}". Try searching with different keywords.`}
-                suggestions={['Hair Cut', 'Facial', 'Massage', 'Manicure', 'Spa']}
-                onSuggestionClick={(suggestion) => {
-                  setQuery(suggestion);
-                  const params = new URLSearchParams();
-                  params.set('q', suggestion);
-                  if (location.trim()) params.set('location', location.trim());
-                  router.push(`/search?${params.toString()}`);
-                }}
-              />
+              <div className="text-center py-12">
+                <div className="max-w-md mx-auto">
+                  <Search className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+                  <h3 className="text-lg font-medium text-gray-900 mb-2">No results found</h3>
+                  <p className="text-gray-600 mb-4">
+                    We couldn't find any salons or services matching "{query}". 
+                    Try searching with different keywords.
+                  </p>
+                  <div className="text-sm text-gray-500">
+                    <p className="mb-2">Try searching for:</p>
+                    <div className="flex flex-wrap gap-2 justify-center">
+                      {['Hair Cut', 'Facial', 'Massage', 'Manicure', 'Spa'].map((suggestion) => (
+                        <button
+                          key={suggestion}
+                          onClick={() => {
+                            setQuery(suggestion);
+                            const params = new URLSearchParams();
+                            params.set('q', suggestion);
+                            if (location.trim()) params.set('location', location.trim());
+                            router.push(`/search?${params.toString()}`);
+                          }}
+                          className="px-3 py-1 bg-gray-100 text-gray-700 rounded-full hover:bg-gray-200 transition-colors"
+                        >
+                          {suggestion}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              </div>
             )}
           </div>
         )}
 
-        {/* No Query State */}
-        {!isLoading && !query && (
-          <EmptyState
-            title="Find Your Perfect Salon"
-            message="Search for salons, services, or browse by location"
-            suggestions={['Hair Cut', 'Hair Color', 'Facial', 'Massage', 'Manicure', 'Spa', 'Eyebrow Threading']}
-            onSuggestionClick={(suggestion) => {
-              setQuery(suggestion);
-              const params = new URLSearchParams();
-              params.set('q', suggestion);
-              if (location.trim()) params.set('location', location.trim());
-              router.push(`/search?${params.toString()}`);
-            }}
-            showSearchButton={false}
-          />
+        {/* Show all salons when no query */}
+        {!isLoading && !query && results.length > 0 && (
+          <div>
+            <h3 className="text-lg font-medium text-gray-900 mb-4">All Salons Near You</h3>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+              {results.map((salon, index) => (
+                <SalonCard key={salon.id || index} salon={salon} />
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* No Query and No Salons State */}
+        {!isLoading && !query && results.length === 0 && (
+          <div className="text-center py-12">
+            <Search className="h-16 w-16 text-gray-300 mx-auto mb-4" />
+            <h3 className="text-xl font-medium text-gray-900 mb-2">Find Your Perfect Salon</h3>
+            <p className="text-gray-600 mb-6">Search for salons, services, or browse by location</p>
+            
+            <div className="max-w-md mx-auto">
+              <p className="text-sm font-medium text-gray-700 mb-3">Popular searches:</p>
+              <div className="flex flex-wrap gap-2 justify-center">
+                {['Hair Cut', 'Hair Color', 'Facial', 'Massage', 'Manicure', 'Spa', 'Eyebrow Threading'].map((suggestion) => (
+                  <button
+                    key={suggestion}
+                    onClick={() => {
+                      setQuery(suggestion);
+                      const params = new URLSearchParams();
+                      params.set('q', suggestion);
+                      if (location.trim()) params.set('location', location.trim());
+                      router.push(`/search?${params.toString()}`);
+                    }}
+                    className="px-4 py-2 bg-white text-gray-700 rounded-full border hover:bg-gray-50 transition-colors text-sm"
+                  >
+                    {suggestion}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
         )}
       </div>
     </div>

@@ -20,9 +20,7 @@ export default function ReviewSection({ reviews, averageRating, totalReviews }) 
   ];
 
   const handleSubmitReview = () => {
-    if (process.env.NODE_ENV === 'development') {
-      console.log('Submitting review:', newReview);
-    }
+    console.log('Submitting review:', newReview);
     // Handle review submission
     setShowWriteReview(false);
     setNewReview({ rating: 0, comment: '', service: '' });

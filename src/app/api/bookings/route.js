@@ -256,9 +256,6 @@ export async function GET(request) {
         { 
           status: 200,
           headers: {
-            'Access-Control-Allow-Origin': '*',
-            'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
-            'Access-Control-Allow-Headers': 'Content-Type, Authorization',
             'Cache-Control': 'no-cache, no-store, must-revalidate'
           }
         }
@@ -271,9 +268,6 @@ export async function GET(request) {
       { 
         status: 200,
         headers: {
-          'Access-Control-Allow-Origin': '*',
-          'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
-          'Access-Control-Allow-Headers': 'Content-Type, Authorization',
           'Cache-Control': 'no-cache, no-store, must-revalidate'
         }
       }
@@ -341,24 +335,9 @@ export async function PUT(request) {
       );
     }
 
-    // Trigger webhook if status changed
-    if (updateData.status && updateData.status !== currentBooking.status) {
-      try {
-        await fetch(`${process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000'}/api/webhooks/booking-status`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            booking_id: booking_id,
-            old_status: currentBooking.status,
-            new_status: updateData.status,
-            shop_id: currentBooking.shop_id
-          })
-        });
-      } catch (webhookError) {
-        console.error('Webhook failed:', webhookError);
-        // Don't fail the request if webhook fails
-      }
-    }
+    // ✅ REMOVED WEBHOOK: Realtime subscriptions will handle notifications automatically
+    // Admin dashboard subscribes to Booking table changes via Supabase Realtime
+    // No need for localhost:3000 → localhost:3001 HTTP calls anymore
 
     return NextResponse.json(
       createSuccessResponse(updatedBooking, 'Booking updated successfully')
