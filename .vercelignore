@@ -1,0 +1,8 @@
+# Exclude dev docs and debug artifacts from the deployment bundle
+AUTH_FIX_SUMMARY.md
+CUSTOMER_IMPLEMENTATION.md
+REALTIME_MIGRATION_COMPLETE.md
+TESTING_CHECKLIST.md
+
+# Local scripts and debug SQL not needed in the runtime bundle
+scripts/

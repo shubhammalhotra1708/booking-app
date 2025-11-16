@@ -1,0 +1,23 @@
+{
+  "version": "mvp-1",
+  "date": "2025-11-16",
+  "p2_todos": [
+    {
+      "id": "client-notifications",
+      "title": "Client notifications on booking status change",
+      "notes": "Toast/in-app badge; optional browser notifications with permission."
+    },
+    {
+      "id": "geo-search",
+      "title": "Geolocation & area-based search",
+      "notes": "Use device geolocation, better index, radius filters, and pills."
+    }
+  ],
+  "known_issues": [
+    {
+      "id": "availability-edge-cases",
+      "title": "Availability edge cases",
+      "notes": "Further stress testing around back-to-back bookings within same minute and DST transitions."
+    }
+  ]
+}

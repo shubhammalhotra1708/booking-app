@@ -78,12 +78,12 @@ export const transformStaffData = (apiStaff) => {
 // Helper functions
 const transformPriceRange = (priceRange) => {
   const priceMap = {
-    'low': '$',
-    'medium': '$$',
-    'high': '$$$',
-    'premium': '$$$$'
+    'low': '₹',
+    'medium': '₹₹',
+    'high': '₹₹₹',
+    'premium': '₹₹₹₹'
   };
-  return priceMap[priceRange] || '$$';
+  return priceMap[priceRange] || '₹₹';
 };
 
 const calculateDistance = () => {

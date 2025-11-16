@@ -1,6 +1,5 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '../../../utils/supabase/server';
-import { createServiceClient } from '../../../utils/supabase/service';
 import { validateRequest, AvailabilitySchema, createErrorResponse, createSuccessResponse } from '../../../lib/validation';
 
 // GET /api/availability - Check available time slots
@@ -24,7 +23,7 @@ export async function GET(request) {
     }
 
     const { shop_id, service_id, staff_id, date } = validation.data;
-    const supabase = createServiceClient(); // Use service client for full access
+  const supabase = await createClient(); // SSR client bound to user (respects RLS)
 
     // Get service details (we need duration)
     const { data: service, error: serviceError } = await supabase
@@ -67,8 +66,8 @@ export async function GET(request) {
       );
     }
 
-    // Get staff who can perform this service (simplified for MVP)
-    let availableStaff = [];
+  // Get staff who can perform this service (respect StaffService mapping when present)
+  let availableStaff = [];
     
     if (staff_id) {
       // Check specific staff member (simplified - assume all staff can do all services)
@@ -89,19 +88,37 @@ export async function GET(request) {
       availableStaff = [specificStaff];
       console.log('Found specific staff:', specificStaff);
     } else {
-      // Get all staff (simplified for MVP - assume all staff can do all services)
-      const { data: allStaff, error: allStaffError } = await supabase
+      // First, check StaffService mappings for this service
+      const { data: mappings, error: mappingError } = await supabase
+        .from('StaffService')
+        .select('staffid, serviceid')
+        .eq('serviceid', service_id);
+
+      if (mappingError) {
+        return NextResponse.json(
+          createErrorResponse('Failed to fetch staff-service mappings', 500),
+          { status: 500 }
+        );
+      }
+
+      let staffQuery = supabase
         .from('Staff')
         .select('id, name, schedule')
-        .eq('shop_id', shop_id);
+        .eq('shop_id', shop_id)
+        .eq('is_active', true);
 
+      if (mappings && mappings.length > 0) {
+        const staffIds = mappings.map((m) => m.staffid);
+        staffQuery = staffQuery.in('id', staffIds);
+      }
+
+      const { data: allStaff, error: allStaffError } = await staffQuery;
       if (allStaffError) {
         return NextResponse.json(
           createErrorResponse('Failed to fetch staff', 500),
           { status: 500 }
         );
       }
-
       availableStaff = allStaff || [];
     }
 
@@ -111,33 +128,50 @@ export async function GET(request) {
       );
     }
 
-    // Get existing bookings for this date with more details for UI display
-    const { data: existingBookings, error: bookingsError } = await supabase
-      .from('Booking')
-      .select(`
-        staff_id, 
-        booking_time, 
-        customer_name,
-        Service(id, name, duration)
-      `)
-      .eq('booking_date', date)
-      .eq('shop_id', shop_id)
-      .in('status', ['pending', 'confirmed']);
+    // Get existing bookings via a SECURITY DEFINER RPC that returns only minimal fields
+    // and bypasses RLS safely without exposing PII.
+    const { data: rpcBookings, error: bookingsError } = await supabase.rpc('get_shop_bookings', {
+      p_shop_id: shop_id,
+      p_date: date
+    });
+    const existingBookings = (rpcBookings || []).map(b => ({
+      staff_id: b.staff_id,
+      booking_time: b.booking_time,
+      customer_name: null, // intentionally omitted by RPC
+      Service: { id: null, name: null, duration: b.service_duration }
+    }));
 
     if (bookingsError) {
       console.error('Error fetching bookings:', bookingsError);
     }
     
-    console.log('Existing bookings for', date, ':', existingBookings);
+    if (process.env.NODE_ENV !== 'production') {
+      console.log('Existing bookings for', date, ':', existingBookings);
+    }
+
+    // Pre-compute busy intervals per staff across ALL services for the day
+    const busyMap = buildBusyMap(existingBookings || []);
 
     // Generate ALL time slots (available and blocked)
-    const allSlots = generateAvailableSlots(
+    let allSlots = generateAvailableSlots(
       dayHours.open,
       dayHours.close,
       service.duration,
       availableStaff,
-      existingBookings || []
+      busyMap
     );
+
+    // Filter out past-time slots when the requested date is today (local time)
+    const today = new Date();
+    const yyyy = today.getFullYear();
+    const mm = String(today.getMonth() + 1).padStart(2, '0');
+    const dd = String(today.getDate()).padStart(2, '0');
+    const todayStr = `${yyyy}-${mm}-${dd}`;
+    if (date === todayStr) {
+      const currentMinutes = today.getHours() * 60 + today.getMinutes();
+      const buffer = 10; // minutes buffer before allowing a slot today
+      allSlots = allSlots.filter((slot) => timeToMinutes(slot.time) >= (currentMinutes + buffer));
+    }
 
     // If a specific staff was selected, filter and modify slots for that staff
     let filteredSlots = allSlots;
@@ -216,7 +250,7 @@ export async function GET(request) {
 }
 
 // Helper function to generate ALL time slots with availability status
-function generateAvailableSlots(openTime, closeTime, serviceDuration, staff, existingBookings) {
+function generateAvailableSlots(openTime, closeTime, serviceDuration, staff, busyMap) {
   const slots = [];
   const slotInterval = 30; // 30-minute intervals
   
@@ -231,50 +265,33 @@ function generateAvailableSlots(openTime, closeTime, serviceDuration, staff, exi
     const timeStr = minutesToTime(time);
     const endTimeStr = minutesToTime(time + serviceDuration);
     
-    // Check for shop-wide conflicts (bookings with staff_id = null)
-    const shopWideConflicts = existingBookings.filter(booking => 
-      booking.staff_id === null &&
-      timeOverlaps(
-        timeStr, 
-        endTimeStr,
-        booking.booking_time,
-        addMinutes(booking.booking_time, booking.Service.duration)
-      )
-    );
+    // Shop-wide blocks (rare) are represented by staff_id = null in some setups.
+    // Our RPC doesn't currently return shop-wide bookings; keep placeholder array for future.
+    const shopWideConflicts = [];
     
     // Check availability for each staff member
     const availableStaffForSlot = [];
     const blockedStaffForSlot = [];
     
     staff.forEach(staffMember => {
-      // Check for staff-specific booking conflicts
-      const conflicts = existingBookings.filter(booking => 
-        booking.staff_id === staffMember.id &&
-        timeOverlaps(
-          timeStr, 
-          endTimeStr,
-          booking.booking_time,
-          addMinutes(booking.booking_time, booking.Service.duration)
-        )
-      );
-      
-      if (conflicts.length === 0 && shopWideConflicts.length === 0) {
+      // Lookup precomputed busy intervals for this staff across ANY service
+      const intervals = busyMap.get(staffMember.id) || [];
+      const overlapsAny = intervals.some(iv => timeOverlaps(timeStr, endTimeStr, iv.start, iv.end));
+
+      if (!overlapsAny && shopWideConflicts.length === 0) {
         // Staff is available
         availableStaffForSlot.push({
           id: staffMember.id,
           name: staffMember.name
         });
       } else {
-        // Staff is blocked
-        const blockingBooking = conflicts[0] || shopWideConflicts[0];
+        // Staff is blocked by another booking (any service)
+        const blockingBooking = null; // PII intentionally omitted in busyMap
         blockedStaffForSlot.push({
           id: staffMember.id,
           name: staffMember.name,
           reason: shopWideConflicts.length > 0 ? 'shop-wide booking' : 'staff booked',
-          bookingDetails: blockingBooking ? {
-            customer: blockingBooking.customer_name || 'Anonymous',
-            service: blockingBooking.Service?.name || 'Unknown Service'
-          } : null
+          bookingDetails: null
         });
       }
     });
@@ -306,6 +323,22 @@ function generateAvailableSlots(openTime, closeTime, serviceDuration, staff, exi
   }
   
   return slots;
+}
+
+// Build a map of busy intervals by staff_id from minimal booking rows
+// Each interval is { start: 'HH:MM', end: 'HH:MM' }
+function buildBusyMap(bookings) {
+  const map = new Map();
+  for (const b of bookings) {
+    const dur = Number(b?.Service?.duration ?? b?.service_duration ?? 0) || 0;
+    const start = (b.booking_time || '').toString().substring(0,5);
+    const end = addMinutes(start, dur);
+    const staffId = b.staff_id ?? null;
+    if (staffId == null) continue; // ignore shop-wide for now
+    if (!map.has(staffId)) map.set(staffId, []);
+    map.get(staffId).push({ start, end });
+  }
+  return map;
 }
 
 // Helper functions

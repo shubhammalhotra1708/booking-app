@@ -19,81 +19,68 @@ import {
   RefreshCw
 } from 'lucide-react';
 import Navbar from '@/components/Navbar';
+import { signUpWithEmail, signInWithEmail, signUpWithPhone, signInWithPhone, getCurrentUser } from '@/lib/auth-helpers';
 
 export default function ClientDashboard() {
   const router = useRouter();
-  const [activeTab, setActiveTab] = useState('lookup'); // 'lookup', 'login'
+  const [activeTab, setActiveTab] = useState('login'); // 'login', 'signup'
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   
-  // Booking lookup form
-  const [lookupForm, setLookupForm] = useState({
-    bookingId: '',
-    phone: '',
-    email: ''
-  });
-  
-  // Quick login form
-  const [loginForm, setLoginForm] = useState({
+  // Auth form (signup/login)
+  const [authForm, setAuthForm] = useState({
+    name: '',
     phone: '',
     email: '',
     password: '',
-    showPassword: false
+    confirmPassword: '',
+    showPassword: false,
+    authMode: 'email' // 'email' or 'phone'
   });
 
   // Check if user is already logged in
   useEffect(() => {
-    const savedSession = localStorage.getItem('clientSession');
-    if (savedSession) {
-      try {
-        const parsedSession = JSON.parse(savedSession);
-        const sessionAge = new Date() - new Date(parsedSession.createdAt);
-        const maxAge = 30 * 24 * 60 * 60 * 1000; // 30 days
-        
-        if (sessionAge < maxAge) {
-          router.push('/my-bookings');
-          return;
-        } else {
-          localStorage.removeItem('clientSession');
-        }
-      } catch (error) {
+    checkAuth();
+  }, []);
+
+  const checkAuth = async () => {
+    try {
+      // Clear old localStorage session first (migration cleanup)
+      if (typeof window !== 'undefined') {
         localStorage.removeItem('clientSession');
       }
-    }
-  }, [router]);
-
-  const handleBookingLookup = async (e) => {
-    e.preventDefault();
-    
-    if (!lookupForm.bookingId || (!lookupForm.phone && !lookupForm.email)) {
-      setError('Please provide booking ID and either phone number or email');
-      return;
-    }
-
-    setLoading(true);
-    setError('');
-    
-    try {
-      // Redirect to booking status page with parameters
-      const params = new URLSearchParams({
-        booking_id: lookupForm.bookingId,
-        ...(lookupForm.phone && { phone: lookupForm.phone }),
-        ...(lookupForm.email && { email: lookupForm.email })
-      });
       
-      router.push(`/booking-status?${params.toString()}`);
+      const { user } = await getCurrentUser();
+      if (user) {
+        router.push('/my-bookings');
+      }
     } catch (error) {
-      setError('Something went wrong. Please try again.');
-      setLoading(false);
+      // User not logged in, stay on this page
+      console.log('Not logged in');
     }
   };
+
+  // Removed booking lookup flow: booking status is visible in My Bookings after login
 
   const handleQuickLogin = async (e) => {
     e.preventDefault();
     
-    if ((!loginForm.phone && !loginForm.email) || !loginForm.password) {
-      setError('Please provide phone/email and password');
+    const isSignup = activeTab === 'signup';
+    
+    // Validation
+    if (isSignup && !authForm.name.trim()) {
+      setError('Name is required for signup');
+      return;
+    }
+    
+    if ((!authForm.phone && !authForm.email) || !authForm.password) {
+      setError('Please provide email/phone and password');
+      return;
+    }
+    
+    if (isSignup && authForm.password !== authForm.confirmPassword) {
+      setError('Passwords do not match');
       return;
     }
 
@@ -101,23 +88,60 @@ export default function ClientDashboard() {
     setError('');
     
     try {
-      // Simple client session for now (in production, use proper auth)
-      const clientSession = {
-        phone: loginForm.phone || null,
-        email: loginForm.email || null,
-        createdAt: new Date().toISOString(),
-        type: 'client'
-      };
+      let result;
       
-      localStorage.setItem('clientSession', JSON.stringify(clientSession));
-      setSuccess('Login successful! Redirecting...');
+      if (authForm.authMode === 'email') {
+        if (isSignup) {
+          result = await signUpWithEmail({
+            email: authForm.email,
+            password: authForm.password,
+            name: authForm.name,
+            phone: authForm.phone || null
+          });
+        } else {
+          result = await signInWithEmail({
+            email: authForm.email,
+            password: authForm.password
+          });
+        }
+      } else {
+        // Phone auth
+        if (isSignup) {
+          result = await signUpWithPhone({
+            phone: authForm.phone,
+            password: authForm.password,
+            name: authForm.name
+          });
+        } else {
+          result = await signInWithPhone({
+            phone: authForm.phone,
+            password: authForm.password
+          });
+        }
+      }
       
-      setTimeout(() => {
-        router.push('/my-bookings');
-      }, 1000);
+      if (!result.success) {
+        throw new Error(result.error || 'Authentication failed');
+      }
+      
+      // Check if session exists (auto-login) or email confirmation required
+      if (result.data?.session) {
+        setSuccess(isSignup ? 'Account created! Redirecting...' : 'Login successful! Redirecting...');
+        
+        setTimeout(() => {
+          router.push('/my-bookings');
+        }, 1000);
+      } else if (isSignup) {
+        // Email confirmation required
+        setSuccess('Account created! Please check your email to confirm your account before logging in.');
+        setLoading(false);
+      } else {
+        // Shouldn't happen for login
+        throw new Error('No session returned');
+      }
       
     } catch (error) {
-      setError('Login failed. Please check your credentials.');
+      setError(error.message || 'Authentication failed. Please try again.');
       setLoading(false);
     }
   };
@@ -139,17 +163,6 @@ export default function ClientDashboard() {
           {/* Tab Navigation */}
           <div className="flex bg-gray-100 rounded-lg p-1 mb-8">
             <button
-              onClick={() => setActiveTab('lookup')}
-              className={`flex-1 py-3 px-4 rounded-md text-sm font-medium transition-colors ${
-                activeTab === 'lookup'
-                  ? 'bg-white text-gray-900 shadow-sm'
-                  : 'text-gray-600 hover:text-gray-900'
-              }`}
-            >
-              <Search className="h-4 w-4 inline mr-2" />
-              Quick Lookup
-            </button>
-            <button
               onClick={() => setActiveTab('login')}
               className={`flex-1 py-3 px-4 rounded-md text-sm font-medium transition-colors ${
                 activeTab === 'login'
@@ -158,7 +171,18 @@ export default function ClientDashboard() {
               }`}
             >
               <User className="h-4 w-4 inline mr-2" />
-              Account Login
+              Login
+            </button>
+            <button
+              onClick={() => setActiveTab('signup')}
+              className={`flex-1 py-3 px-4 rounded-md text-sm font-medium transition-colors ${
+                activeTab === 'signup'
+                  ? 'bg-white text-gray-900 shadow-sm'
+                  : 'text-gray-600 hover:text-gray-900'
+              }`}
+            >
+              <User className="h-4 w-4 inline mr-2" />
+              Sign Up
             </button>
           </div>
 
@@ -181,177 +205,206 @@ export default function ClientDashboard() {
             </div>
           )}
 
-          {/* Quick Booking Lookup */}
-          {activeTab === 'lookup' && (
+          {/* Quick Booking Lookup removed */}
+
+          {/* Account Login & Signup */}
+          {(activeTab === 'login' || activeTab === 'signup') && (
             <div>
               <div className="mb-6">
-                <h2 className="text-xl font-semibold text-gray-900 mb-2">Find Your Booking</h2>
+                <h2 className="text-xl font-semibold text-gray-900 mb-2">
+                  {activeTab === 'signup' ? 'Create Account' : 'Account Login'}
+                </h2>
                 <p className="text-gray-600 text-sm">
-                  Enter your booking details to check status and get updates
+                  {activeTab === 'signup' 
+                    ? 'Sign up to book and manage your appointments'
+                    : 'Sign in to view all your bookings and account details'
+                  }
                 </p>
               </div>
 
-              <form onSubmit={handleBookingLookup} className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Booking ID
-                  </label>
-                  <div className="relative">
-                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
-                    <input
-                      type="text"
-                      value={lookupForm.bookingId}
-                      onChange={(e) => setLookupForm({...lookupForm, bookingId: e.target.value})}
-                      className="w-full pl-10 pr-3 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                      placeholder="Enter your booking ID (e.g., #000123)"
-                      required
-                    />
-                  </div>
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Phone Number
-                  </label>
-                  <div className="relative">
-                    <Phone className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
-                    <input
-                      type="tel"
-                      value={lookupForm.phone}
-                      onChange={(e) => setLookupForm({...lookupForm, phone: e.target.value})}
-                      className="w-full pl-10 pr-3 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                      placeholder="Enter your phone number"
-                    />
-                  </div>
-                </div>
-
-                <div className="text-center text-sm text-gray-500 my-2">OR</div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Email Address
-                  </label>
-                  <div className="relative">
-                    <Mail className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
-                    <input
-                      type="email"
-                      value={lookupForm.email}
-                      onChange={(e) => setLookupForm({...lookupForm, email: e.target.value})}
-                      className="w-full pl-10 pr-3 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                      placeholder="Enter your email address"
-                    />
-                  </div>
-                </div>
-
+              {/* Auth Mode Switcher (Email/Phone) */}
+              <div className="flex bg-gray-100 rounded-lg p-1 mb-6">
                 <button
-                  type="submit"
-                  disabled={loading}
-                  className="w-full bg-blue-600 text-white py-3 px-4 rounded-lg hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors font-medium flex items-center justify-center"
+                  type="button"
+                  onClick={() => setAuthForm({...authForm, authMode: 'email'})}
+                  className={`flex-1 py-2 px-3 rounded-md text-sm font-medium transition-colors ${
+                    authForm.authMode === 'email'
+                      ? 'bg-white text-gray-900 shadow-sm'
+                      : 'text-gray-600 hover:text-gray-900'
+                  }`}
                 >
-                  {loading ? (
-                    <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
-                  ) : (
-                    <Search className="h-4 w-4 mr-2" />
-                  )}
-                  {loading ? 'Searching...' : 'Find My Booking'}
+                  <Mail className="h-4 w-4 inline mr-1" />
+                  Email
                 </button>
-              </form>
-            </div>
-          )}
-
-          {/* Account Login */}
-          {activeTab === 'login' && (
-            <div>
-              <div className="mb-6">
-                <h2 className="text-xl font-semibold text-gray-900 mb-2">Account Login</h2>
-                <p className="text-gray-600 text-sm">
-                  Sign in to view all your bookings and account details
-                </p>
+                <button
+                  type="button"
+                  onClick={() => setAuthForm({...authForm, authMode: 'phone'})}
+                  className={`flex-1 py-2 px-3 rounded-md text-sm font-medium transition-colors ${
+                    authForm.authMode === 'phone'
+                      ? 'bg-white text-gray-900 shadow-sm'
+                      : 'text-gray-600 hover:text-gray-900'
+                  }`}
+                >
+                  <Phone className="h-4 w-4 inline mr-1" />
+                  Phone
+                </button>
               </div>
 
               <form onSubmit={handleQuickLogin} className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Phone Number
-                  </label>
-                  <div className="relative">
-                    <Phone className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
-                    <input
-                      type="tel"
-                      value={loginForm.phone}
-                      onChange={(e) => setLoginForm({...loginForm, phone: e.target.value})}
-                      className="w-full pl-10 pr-3 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                      placeholder="Enter your phone number"
-                    />
+                {/* Name field (signup only) */}
+                {activeTab === 'signup' && (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Full Name *
+                    </label>
+                    <div className="relative">
+                      <User className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+                      <input
+                        type="text"
+                        value={authForm.name}
+                        onChange={(e) => setAuthForm({...authForm, name: e.target.value})}
+                        className="w-full pl-10 pr-3 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                        placeholder="Enter your full name"
+                        required
+                      />
+                    </div>
                   </div>
-                </div>
+                )}
 
-                <div className="text-center text-sm text-gray-500 my-2">OR</div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Email Address
-                  </label>
-                  <div className="relative">
-                    <Mail className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
-                    <input
-                      type="email"
-                      value={loginForm.email}
-                      onChange={(e) => setLoginForm({...loginForm, email: e.target.value})}
-                      className="w-full pl-10 pr-3 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                      placeholder="Enter your email address"
-                    />
+                {/* Email or Phone based on mode */}
+                {authForm.authMode === 'email' ? (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Email Address *
+                    </label>
+                    <div className="relative">
+                      <Mail className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+                      <input
+                        type="email"
+                        value={authForm.email}
+                        onChange={(e) => setAuthForm({...authForm, email: e.target.value})}
+                        className="w-full pl-10 pr-3 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                        placeholder="Enter your email address"
+                        required
+                      />
+                    </div>
                   </div>
-                </div>
+                ) : (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Phone Number *
+                    </label>
+                    <div className="relative">
+                      <Phone className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+                      <input
+                        type="tel"
+                        value={authForm.phone}
+                        onChange={(e) => setAuthForm({...authForm, phone: e.target.value})}
+                        className="w-full pl-10 pr-3 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                        placeholder="Enter your phone number"
+                        required
+                      />
+                    </div>
+                  </div>
+                )}
 
+                {/* Optional phone for email signup */}
+                {activeTab === 'signup' && authForm.authMode === 'email' && (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Phone Number (Optional)
+                    </label>
+                    <div className="relative">
+                      <Phone className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+                      <input
+                        type="tel"
+                        value={authForm.phone}
+                        onChange={(e) => setAuthForm({...authForm, phone: e.target.value})}
+                        className="w-full pl-10 pr-3 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                        placeholder="Enter your phone number"
+                      />
+                    </div>
+                  </div>
+                )}
+
+                {/* Password */}
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Password
+                    Password *
                   </label>
                   <div className="relative">
                     <User className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
                     <input
-                      type={loginForm.showPassword ? 'text' : 'password'}
-                      value={loginForm.password}
-                      onChange={(e) => setLoginForm({...loginForm, password: e.target.value})}
+                      type={authForm.showPassword ? 'text' : 'password'}
+                      value={authForm.password}
+                      onChange={(e) => setAuthForm({...authForm, password: e.target.value})}
                       className="w-full pl-10 pr-10 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                       placeholder="Enter your password"
                       required
                     />
                     <button
                       type="button"
-                      onClick={() => setLoginForm({...loginForm, showPassword: !loginForm.showPassword})}
+                      onClick={() => setAuthForm({...authForm, showPassword: !authForm.showPassword})}
                       className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
                     >
-                      {loginForm.showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                      {authForm.showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                     </button>
                   </div>
                 </div>
 
+                {/* Confirm Password (signup only) */}
+                {activeTab === 'signup' && (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Confirm Password *
+                    </label>
+                    <div className="relative">
+                      <User className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+                      <input
+                        type={authForm.showPassword ? 'text' : 'password'}
+                        value={authForm.confirmPassword}
+                        onChange={(e) => setAuthForm({...authForm, confirmPassword: e.target.value})}
+                        className="w-full pl-10 pr-3 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                        placeholder="Confirm your password"
+                        required
+                      />
+                    </div>
+                  </div>
+                )}
+
                 <button
                   type="submit"
                   disabled={loading}
-                  className="w-full bg-green-600 text-white py-3 px-4 rounded-lg hover:bg-green-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors font-medium flex items-center justify-center"
+                  className={`w-full text-white py-3 px-4 rounded-lg disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors font-medium flex items-center justify-center ${
+                    activeTab === 'signup' ? 'bg-blue-600 hover:bg-blue-700' : 'bg-green-600 hover:bg-green-700'
+                  }`}
                 >
                   {loading ? (
                     <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
                   ) : (
                     <ArrowRight className="h-4 w-4 mr-2" />
                   )}
-                  {loading ? 'Signing In...' : 'Sign In'}
+                  {loading 
+                    ? (activeTab === 'signup' ? 'Creating Account...' : 'Signing In...') 
+                    : (activeTab === 'signup' ? 'Create Account' : 'Sign In')
+                  }
                 </button>
               </form>
 
               <div className="mt-6 text-center">
                 <p className="text-sm text-gray-600">
-                  Don't have an account? Book a service to create one automatically.
+                  {activeTab === 'signup' 
+                    ? 'Already have an account?' 
+                    : "Don't have an account?"
+                  }
+                  {' '}
+                  <button
+                    onClick={() => setActiveTab(activeTab === 'signup' ? 'login' : 'signup')}
+                    className="text-blue-600 hover:text-blue-800 font-medium"
+                  >
+                    {activeTab === 'signup' ? 'Login here' : 'Sign up here'}
+                  </button>
                 </p>
-                <Link 
-                  href="/search"
-                  className="text-blue-600 hover:text-blue-800 text-sm font-medium"
-                >
-                  Book Now →
-                </Link>
               </div>
             </div>
           )}
@@ -368,11 +421,11 @@ export default function ClientDashboard() {
                 <span className="text-sm font-medium text-gray-700">Book New Appointment</span>
               </Link>
               <Link
-                href="/booking-status"
+                href="/my-bookings"
                 className="flex items-center justify-center p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
               >
                 <Clock className="h-5 w-5 text-green-600 mr-2" />
-                <span className="text-sm font-medium text-gray-700">Check Booking Status</span>
+                <span className="text-sm font-medium text-gray-700">Go to My Bookings</span>
               </Link>
             </div>
           </div>

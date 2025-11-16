@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { createServiceClient } from '@/utils/supabase/service';
+import { createClient } from '@/utils/supabase/server';
 import { validateRequest, BookingSchema, createErrorResponse, createSuccessResponse } from '@/lib/validation';
 
 // OPTIONS handler for CORS preflight requests
@@ -28,7 +28,7 @@ export async function POST(request) {
       );
     }
 
-    const supabase = createServiceClient();
+  const supabase = await createClient();
     const bookingData = validation.data;
 
     // Check if the shop exists and is active
@@ -62,90 +62,43 @@ export async function POST(request) {
       );
     }
 
-    // If staff_id is provided, check if staff exists (simplified check for now)
-    if (bookingData.staff_id) {
-      const { data: staff, error: staffError } = await supabase
-        .from('Staff')
-        .select('id, name, shop_id')
-        .eq('id', bookingData.staff_id)
-        .eq('shop_id', bookingData.shop_id)
-        .single();
+    // Use atomic RPC to book the slot with revalidation and advisory locking
+    const { data: booking, error: rpcError } = await supabase.rpc('book_slot', {
+      p_shop_id: bookingData.shop_id,
+      p_service_id: bookingData.service_id,
+      p_staff_id: bookingData.staff_id || null,
+      p_customer_id: bookingData.customer_id || null,
+      p_customer_name: bookingData.customer_name,
+      p_customer_email: bookingData.customer_email || null,
+      p_customer_phone: bookingData.customer_phone,
+      p_date: bookingData.booking_date,
+      p_time: bookingData.booking_time,
+      p_duration_min: service.duration,
+      p_customer_notes: bookingData.customer_notes || bookingData.notes || null,
+    });
 
-      if (staffError || !staff) {
+    if (rpcError) {
+      console.error('RPC book_slot error:', rpcError);
+      const msg = rpcError.message || '';
+      if (msg.includes('SLOT_CONFLICT')) {
         return NextResponse.json(
-          createErrorResponse('Staff member not found or not available', 404),
-          { status: 404 }
+          createErrorResponse('Time slot is already booked', 409),
+          { status: 409 }
         );
       }
-    }
-
-    // Check for existing booking conflicts (same staff, date, time)
-    if (bookingData.staff_id) {
-      const { data: conflictingBookings } = await supabase
-        .from('Booking')
-        .select('id, booking_time, Service(duration)')
-        .eq('staff_id', bookingData.staff_id)
-        .eq('booking_date', bookingData.booking_date)
-        .in('status', ['pending', 'confirmed']);
-
-      if (conflictingBookings && conflictingBookings.length > 0) {
-        // Check for time overlaps
-        const requestedStartTime = bookingData.booking_time;
-        const requestedEndTime = addMinutes(requestedStartTime, service.duration);
-
-        for (const existing of conflictingBookings) {
-          const existingStartTime = existing.booking_time;
-          const existingEndTime = addMinutes(existingStartTime, existing.Service.duration);
-
-          if (timeOverlaps(requestedStartTime, requestedEndTime, existingStartTime, existingEndTime)) {
-            return NextResponse.json(
-              createErrorResponse('Time slot is already booked', 409),
-              { status: 409 }
-            );
-          }
-        }
+      if (msg.includes('INVALID_SHOP')) {
+        return NextResponse.json(createErrorResponse('Shop not found or inactive', 404), { status: 404 });
       }
-    }
-
-    // Calculate pricing based on your schema
-    const servicePrice = service.price;
-    const discountApplied = bookingData.discount_applied || 0;
-    const totalAmount = servicePrice - discountApplied;
-
-    // Create the booking with your exact schema fields
-    const { data: booking, error: bookingError } = await supabase
-      .from('Booking')
-      .insert([{
-        customer_name: bookingData.customer_name,
-        customer_email: bookingData.customer_email,
-        customer_phone: bookingData.customer_phone,
-        customer_notes: bookingData.customer_notes || bookingData.notes,
-        booking_date: bookingData.booking_date,
-        booking_time: bookingData.booking_time,
-        duration: service.duration, // Single service duration
-        service_price: servicePrice,
-        discount_applied: discountApplied,
-        total_amount: totalAmount,
-        notes: bookingData.notes, // Admin notes
-        shop_id: bookingData.shop_id,
-        service_id: bookingData.service_id,
-        staff_id: bookingData.staff_id || null,
-        status: 'pending'
-      }])
-      .select(`
-        *,
-        Service (id, name, price, duration),
-        Staff (id, name, role),
-        Shop (id, name)
-      `)
-      .single();
-
-    if (bookingError) {
-      console.error('Error creating booking:', bookingError);
-      return NextResponse.json(
-        createErrorResponse('Failed to create booking', 500),
-        { status: 500 }
-      );
+      if (msg.includes('INVALID_SERVICE')) {
+        return NextResponse.json(createErrorResponse('Service not found or inactive', 404), { status: 404 });
+      }
+      if (msg.includes('INVALID_STAFF')) {
+        return NextResponse.json(createErrorResponse('Staff member not found or not available', 404), { status: 404 });
+      }
+      if (msg.includes('INVALID_DURATION')) {
+        return NextResponse.json(createErrorResponse('Invalid duration', 400), { status: 400 });
+      }
+      return NextResponse.json(createErrorResponse('Failed to create booking', 500), { status: 500 });
     }
 
     return NextResponse.json(
@@ -172,24 +125,25 @@ export async function GET(request) {
     const date = searchParams.get('date');
     const customerPhone = searchParams.get('customer_phone');
     const customerEmail = searchParams.get('customer_email');
+    const customerId = searchParams.get('customer_id');
     
-    // Either shop_id, booking_id, or customer info is required
-    if (!shopId && !bookingId && !customerPhone && !customerEmail) {
+    // Either shop_id, booking_id, customer_id, or customer info is required
+    if (!shopId && !bookingId && !customerId && !customerPhone && !customerEmail) {
       return NextResponse.json(
-        createErrorResponse('Shop ID, Booking ID, or customer info is required', 400),
+        createErrorResponse('Shop ID, Booking ID, Customer ID, or customer info is required', 400),
         { status: 400 }
       );
     }
 
-    const supabase = createServiceClient();
+  const supabase = await createClient();
 
     let query = supabase
       .from('Booking')
       .select(`
         *,
-        Service (id, name, price, duration),
-        Staff (id, name, role),
-        Shop (id, name)
+        Service!Booking_service_id_fkey (id, name, price, duration),
+        Staff!Booking_staff_id_fkey (id, name, role),
+        Shop!Booking_shop_id_fkey (id, name)
       `);
 
     // If booking_id is provided, get specific booking with verification
@@ -208,8 +162,12 @@ export async function GET(request) {
           query = query.eq('customer_email', email);
         }
       }
+    } else if (customerId) {
+      // Customer lookup by customer_id (for logged-in users)
+      query = query.eq('customer_id', customerId);
+      query = query.order('booking_date', { ascending: false });
     } else if (customerPhone || customerEmail) {
-      // Customer lookup for their bookings
+      // Customer lookup for their bookings (legacy/guest bookings)
       if (customerPhone) {
         query = query.eq('customer_phone', customerPhone);
       } else if (customerEmail) {
@@ -295,7 +253,7 @@ export async function PUT(request) {
       );
     }
 
-    const supabase = createServiceClient();
+  const supabase = await createClient();
 
     // Get current booking for webhook
     const { data: currentBooking, error: fetchError } = await supabase
@@ -321,9 +279,9 @@ export async function PUT(request) {
       .eq('id', booking_id)
       .select(`
         *,
-        Service (id, name, price, duration),
-        Staff (id, name, role),
-        Shop (id, name)
+        Service!Booking_service_id_fkey (id, name, price, duration),
+        Staff!Booking_staff_id_fkey (id, name, role),
+        Shop!Booking_shop_id_fkey (id, name)
       `)
       .single();
 

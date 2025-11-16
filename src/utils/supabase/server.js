@@ -8,6 +8,13 @@ export async function createClient() {
     process.env.NEXT_PUBLIC_SUPABASE_URL,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
     {
+      cookieOptions: {
+        // Use a distinct cookie name so booking-app SSR cookies don't collide with admin app
+        name: 'sb-booking-auth',
+        lifetime: 60 * 60 * 24 * 7, // 7 days
+        path: '/',
+        sameSite: 'lax',
+      },
       cookies: {
         getAll() {
           return cookieStore.getAll()

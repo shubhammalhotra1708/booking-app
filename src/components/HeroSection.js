@@ -21,7 +21,9 @@ export default function HeroSection() {
     // Otherwise leave location field empty for user to enter
   }, []);
 
-  const handleSearch = (queryOverride = null) => {
+  const handleSearch = (arg = null) => {
+    // If called from onClick, React passes the event as the first arg; ignore it
+    const queryOverride = typeof arg === 'string' ? arg : null;
     const searchTerm = queryOverride || searchQuery.trim();
     if (!searchTerm) return;
     

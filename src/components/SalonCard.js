@@ -14,8 +14,8 @@ export default function SalonCard({ salon, showStatusBadge = true, showSpecialOf
     return null;
   }
 
-  // Ensure consistent pricing display
-  const displayPrice = salon.price || salon.priceRange || '$$';
+  // Ensure consistent pricing display - Indian Rupee
+  const displayPrice = salon.price || salon.priceRange || '₹₹';
   
   // Limit services display and calculate overflow
   const maxServices = 2;

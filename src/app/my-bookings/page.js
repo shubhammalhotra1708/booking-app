@@ -1,113 +1,108 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useRouter, useSearchParams } from 'next/navigation';
-import { Calendar, Clock, MapPin, User, Phone, RefreshCw, CheckCircle, XCircle, AlertCircle } from 'lucide-react';
+import { useRouter } from 'next/navigation';
+import { Calendar, Clock, MapPin, User, Phone, RefreshCw, CheckCircle, XCircle, AlertCircle, LogOut } from 'lucide-react';
 import Navbar from '@/components/Navbar';
+import { getCurrentUser, signOut, ensureCustomerRecord } from '@/lib/auth-helpers';
+import { createClient } from '@/utils/supabase/client';
+import { getCustomerBookings } from '@/actions/customers';
 
 export default function MyBookings() {
   const router = useRouter();
-  const searchParams = useSearchParams();
   const [bookings, setBookings] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState('');
-  const [userSession, setUserSession] = useState(null);
+  const [user, setUser] = useState(null);
+  const [customer, setCustomer] = useState(null);
+  const [newCreds, setNewCreds] = useState(null);
+  const [setupPwd, setSetupPwd] = useState('');
+  const [setupLoading, setSetupLoading] = useState(false);
+  const [setupError, setSetupError] = useState('');
+  const [setupSuccess, setSetupSuccess] = useState('');
   const [filter, setFilter] = useState('all'); // 'all', 'upcoming', 'past', 'pending', 'confirmed'
 
   useEffect(() => {
-    // Check for user session
-    const savedSession = localStorage.getItem('clientSession');
-    if (savedSession) {
-      try {
-        const parsedSession = JSON.parse(savedSession);
-        const sessionAge = new Date() - new Date(parsedSession.createdAt);
-        const maxAge = 30 * 24 * 60 * 60 * 1000; // 30 days
-        
-        if (sessionAge < maxAge) {
-          setUserSession(parsedSession);
-          fetchBookings(parsedSession);
-        } else {
-          localStorage.removeItem('clientSession');
-          redirectToLogin();
-        }
-      } catch (error) {
-        localStorage.removeItem('clientSession');
-        redirectToLogin();
-      }
-    } else {
-      // Check for email param (from booking confirmation)
-      const email = searchParams.get('email');
-      if (email) {
-        fetchBookingsByEmail(email);
-      } else {
-        redirectToLogin();
-      }
-    }
-  }, [searchParams]);
+    checkAuthAndFetchBookings();
+  }, []);
 
-  const redirectToLogin = () => {
-    router.push('/client-dashboard');
-  };
+  // Deprecated: credentials banner removed; we now prompt to create password for temp accounts
 
-  const fetchBookings = async (session) => {
+  const checkAuthAndFetchBookings = async () => {
     try {
       setLoading(true);
-      setError('');
       
-      const searchField = session.phone ? 'customer_phone' : 'customer_email';
-      const searchValue = session.phone || session.email;
+      // Get current user from Supabase Auth
+  const { user: authUser } = await getCurrentUser();
       
-      const response = await fetch(`/api/bookings?${searchField}=${encodeURIComponent(searchValue)}`);
-      
-      if (!response.ok) {
-        throw new Error('Failed to fetch bookings');
+      if (!authUser) {
+        router.push('/client-dashboard');
+        return;
       }
       
-      const result = await response.json();
-      setBookings(result.data || []);
+      setUser(authUser);
+      
+      // Get or create customer record
+      const ensureRes = await ensureCustomerRecord();
+      const customerData = ensureRes?.success ? ensureRes.data : null;
+
+      if (!customerData) {
+        setError('Failed to load customer profile');
+        setLoading(false);
+        return;
+      }
+      
+      setCustomer(customerData);
+      
+      // Fetch bookings by customer_id
+  const bookingsData = await getCustomerBookings(customerData.id);
+      setBookings(bookingsData);
       
     } catch (error) {
-      console.error('Error fetching bookings:', error);
-      setError('Failed to load your bookings. Please try again.');
+      console.error('Error:', error);
+      setError('Failed to load your bookings');
     } finally {
       setLoading(false);
     }
   };
-
-  const fetchBookingsByEmail = async (email) => {
+  const handleFinishAccountSetup = async () => {
+    setSetupError('');
+    setSetupSuccess('');
+    if (setupPwd.length < 6) {
+      setSetupError('Password must be at least 6 characters.');
+      return;
+    }
     try {
-      setLoading(true);
-      setError('');
-      
-      const response = await fetch(`/api/bookings?customer_email=${encodeURIComponent(email)}`);
-      
-      if (!response.ok) {
-        throw new Error('Failed to fetch bookings');
-      }
-      
-      const result = await response.json();
-      setBookings(result.data || []);
-      
-    } catch (error) {
-      console.error('Error fetching bookings:', error);
-      setError('Failed to load your bookings. Please try again.');
+      setSetupLoading(true);
+      const supa = createClient();
+      const { error } = await supa.auth.updateUser({
+        password: setupPwd,
+        data: { ...(user?.user_metadata || {}), temp_account: false },
+      });
+      if (error) throw error;
+      setSetupSuccess('Password set successfully. You can use it to sign in later.');
+      // refresh user state
+      const refreshed = await getCurrentUser();
+      setUser(refreshed.user);
+    } catch (e) {
+      setSetupError(e.message || 'Failed to set password');
     } finally {
-      setLoading(false);
+      setSetupLoading(false);
     }
   };
 
-  const handleRefresh = async () => {
+    const handleRefresh = async () => {
     setRefreshing(true);
-    if (userSession) {
-      await fetchBookings(userSession);
-    } else {
-      const email = searchParams.get('email');
-      if (email) {
-        await fetchBookingsByEmail(email);
-      }
-    }
+    await checkAuthAndFetchBookings();
     setRefreshing(false);
+  };
+
+  const handleLogout = async () => {
+    const { success } = await signOut();
+    if (success) {
+      router.push('/');
+    }
   };
 
   const getStatusIcon = (status) => {
@@ -189,25 +184,66 @@ export default function MyBookings() {
       <Navbar showCompactSearch={true} />
       
       <div className="max-w-4xl mx-auto px-4 py-8">
+        {/* Finish account setup (password) for temp accounts */}
+        {user?.user_metadata?.temp_account && (
+          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
+            <div className="flex items-start gap-3">
+              <div className="bg-blue-100 p-2 rounded-full">🔐</div>
+              <div className="flex-1">
+                <div className="font-semibold text-blue-900 mb-1">Finish account setup</div>
+                <div className="text-sm text-blue-800">Create a password so you can sign in later.</div>
+                <div className="mt-2 flex gap-2 items-center">
+                  <input
+                    type="password"
+                    value={setupPwd}
+                    onChange={(e) => setSetupPwd(e.target.value)}
+                    placeholder="Create password"
+                    className="p-2 border rounded w-64"
+                  />
+                  <button
+                    onClick={handleFinishAccountSetup}
+                    disabled={setupLoading}
+                    className="px-3 py-2 bg-blue-600 text-white rounded disabled:opacity-50"
+                  >
+                    {setupLoading ? 'Saving...' : 'Save Password'}
+                  </button>
+                </div>
+                {setupError && <div className="text-red-600 text-sm mt-2">{setupError}</div>}
+                {setupSuccess && <div className="text-green-700 text-sm mt-2">{setupSuccess}</div>}
+              </div>
+            </div>
+          </div>
+        )}
         {/* Header */}
-        <div className="flex items-center justify-between mb-8">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-8">
           <div>
-            <h1 className="text-3xl font-bold text-gray-900">
-              My Bookings
-            </h1>
+            <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">My Bookings</h1>
             <p className="text-gray-600 mt-1">
-              {userSession ? `Welcome back, ${userSession.name}!` : 'Manage your appointments'}
+              {customer
+                ? `Welcome back, ${customer.name || user?.email || 'Customer'}!`
+                : user?.email
+                ? `Welcome, ${user.email}`
+                : 'Manage your appointments'}
             </p>
           </div>
           
-          <button
-            onClick={handleRefresh}
-            disabled={refreshing}
-            className="flex items-center space-x-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors"
-          >
-            <RefreshCw className={`h-4 w-4 ${refreshing ? 'animate-spin' : ''}`} />
-            <span>{refreshing ? 'Refreshing...' : 'Refresh'}</span>
-          </button>
+          <div className="flex gap-2">
+            <button
+              onClick={handleRefresh}
+              disabled={refreshing}
+              className="inline-flex items-center px-4 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50"
+            >
+              <RefreshCw className={`h-4 w-4 mr-2 ${refreshing ? 'animate-spin' : ''}`} />
+              Refresh
+            </button>
+            <button
+              onClick={handleLogout}
+              className="inline-flex items-center px-4 py-2 bg-red-600 text-white rounded-lg text-sm font-medium hover:bg-red-700"
+            >
+              <LogOut className="h-4 w-4 mr-2" />
+              Logout
+            </button>
+          </div>
         </div>
 
         {/* Filter Tabs */}

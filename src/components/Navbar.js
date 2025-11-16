@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { User, Menu, X, Search, MapPin, ChevronDown } from 'lucide-react';
 import { getUserLocation, setUserLocation } from '@/utils/searchUtils';
+import { getCurrentUser, signOut, ensureCustomerRecord } from '@/lib/auth-helpers';
 
 export default function Navbar({ showCompactSearch = false }) {
   const router = useRouter();
@@ -12,7 +13,8 @@ export default function Navbar({ showCompactSearch = false }) {
   const [showScrollSearch, setShowScrollSearch] = useState(false);
   const [location, setLocation] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
-  const [userSession, setUserSession] = useState(null);
+  const [user, setUser] = useState(null);
+  const [customer, setCustomer] = useState(null);
   const [showAccountMenu, setShowAccountMenu] = useState(false);
 
   // Compute search disabled state
@@ -31,28 +33,22 @@ export default function Navbar({ showCompactSearch = false }) {
       setLocation(savedLocation);
     }
 
-    // Check for user session
-    const savedSession = localStorage.getItem('clientSession');
-    if (savedSession) {
-      try {
-        const parsedSession = JSON.parse(savedSession);
-        // Simple session validation
-        const sessionAge = new Date() - new Date(parsedSession.createdAt);
-        const maxAge = 30 * 24 * 60 * 60 * 1000; // 30 days
-        
-        if (sessionAge < maxAge) {
-          setUserSession(parsedSession);
-        } else {
-          localStorage.removeItem('clientSession');
-        }
-      } catch (error) {
-        localStorage.removeItem('clientSession');
-      }
-    }
+    // Check auth status
+    checkAuth();
 
     window.addEventListener('scroll', handleScroll);
     return () => window.removeEventListener('scroll', handleScroll);
   }, []);
+
+  const checkAuth = async () => {
+    const { user: authUser } = await getCurrentUser();
+    setUser(authUser);
+    
+    if (authUser) {
+      const res = await ensureCustomerRecord();
+      if (res?.success) setCustomer(res.data);
+    }
+  };
 
   const handleSearch = () => {
     if (!searchQuery.trim()) return;
@@ -106,7 +102,7 @@ export default function Navbar({ showCompactSearch = false }) {
                 showScrollSearch || showCompactSearch ? 'text-sky-500' : 'text-gray-800'
               }`}
             >
-              BeautyBook
+              BookEz
             </Link>
           </div>
 
@@ -189,7 +185,7 @@ export default function Navbar({ showCompactSearch = false }) {
             
             {/* User Account Element */}
             <div className="relative">
-              {userSession ? (
+              {user ? (
                 <div>
                   <button 
                     onClick={() => setShowAccountMenu(!showAccountMenu)}
@@ -207,7 +203,9 @@ export default function Navbar({ showCompactSearch = false }) {
                           : 'text-gray-800'
                       }`}
                     >
-                      {userSession.name || 'Account'}
+                      {customer?.name && customer.name !== 'Customer'
+                        ? customer.name
+                        : (user?.email || 'Account')}
                     </span>
                     <ChevronDown className="h-4 w-4 text-gray-400" />
                   </button>
@@ -231,10 +229,12 @@ export default function Navbar({ showCompactSearch = false }) {
                       </Link>
                       <hr className="my-1" />
                       <button
-                        onClick={() => {
-                          localStorage.removeItem('clientSession');
-                          setUserSession(null);
+                        onClick={async () => {
+                          await signOut();
+                          setUser(null);
+                          setCustomer(null);
                           setShowAccountMenu(false);
+                          router.push('/');
                         }}
                         className="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
                       >

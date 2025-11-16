@@ -76,7 +76,7 @@ export const BookingSchema = z.object({
   booking_date: z.string()
     .regex(/^\d{4}-\d{2}-\d{2}$/, 'Date must be in YYYY-MM-DD format')
     .refine((date) => {
-      const bookingDate = new Date(date);
+      const bookingDate = new Date(date + 'T00:00:00'); // Force local timezone
       const today = new Date();
       today.setHours(0, 0, 0, 0);
       return bookingDate >= today;
@@ -96,7 +96,9 @@ export const BookingSchema = z.object({
     .trim()
     .optional(),
   status: z.enum(['pending', 'confirmed', 'rejected', 'completed', 'cancelled', 'no_show'])
-    .default('pending')
+    .default('pending'),
+  // For logged-in users we allow client to pass the Customer PK; server will trust only when present
+  customer_id: z.string().uuid('customer_id must be a UUID').optional()
 });
 
 // Booking update schema (allows partial updates)
@@ -115,7 +117,7 @@ export const AvailabilitySchema = z.object({
   date: z.string()
     .regex(/^\d{4}-\d{2}-\d{2}$/, 'Date must be in YYYY-MM-DD format')
     .refine((date) => {
-      const bookingDate = new Date(date);
+      const bookingDate = new Date(date + 'T00:00:00'); // Force local timezone
       const today = new Date();
       today.setHours(0, 0, 0, 0);
       return bookingDate >= today;
