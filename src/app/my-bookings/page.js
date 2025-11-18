@@ -219,11 +219,18 @@ export default function MyBookings() {
           <div>
             <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">My Bookings</h1>
             <p className="text-gray-600 mt-1">
-              {customer
-                ? `Welcome back, ${customer.name || user?.email || 'Customer'}!`
-                : user?.email
-                ? `Welcome, ${user.email}`
-                : 'Manage your appointments'}
+              {(() => {
+                const email = user?.email || '';
+                const isPhoneAlias = email.endsWith('@phone.local');
+                const fallbackLabel = isPhoneAlias ? 'Customer' : (email || 'Customer');
+                if (customer) {
+                  return `Welcome back, ${customer.name || fallbackLabel}!`;
+                }
+                if (user?.email) {
+                  return `Welcome, ${fallbackLabel}`;
+                }
+                return 'Manage your appointments';
+              })()}
             </p>
           </div>
           

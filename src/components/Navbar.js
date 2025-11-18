@@ -203,9 +203,13 @@ export default function Navbar({ showCompactSearch = false }) {
                           : 'text-gray-800'
                       }`}
                     >
-                      {customer?.name && customer.name !== 'Customer'
-                        ? customer.name
-                        : (user?.email || 'Account')}
+                      {(() => {
+                        if (customer?.name && customer.name !== 'Customer') return customer.name;
+                        const email = user?.email || '';
+                        const isPhoneAlias = email.endsWith('@phone.local');
+                        if (customer?.phone) return customer.phone;
+                        return isPhoneAlias ? 'Account' : (email || 'Account');
+                      })()}
                     </span>
                     <ChevronDown className="h-4 w-4 text-gray-400" />
                   </button>

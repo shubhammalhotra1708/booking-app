@@ -314,9 +314,11 @@ function BookingFlowInner() {
           authUser = await waitForSession();
           
           // Ensure the customer exists (client-side with session)
+          const alias = customerInfo?.email ? null : `${customerInfo.phone}@phone.local`;
           const customerRes = await ensureCustomerRecord({
             name: customerInfo.name,
-            email: customerInfo.email || `${customerInfo.phone}@phone.local`,
+            // Never persist alias emails; only pass real emails or null
+            email: customerInfo.email || null,
             phone: customerInfo.phone,
           });
           if (customerRes?.success) {

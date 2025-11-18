@@ -149,7 +149,8 @@ export async function signUpWithPhone({ phone, password, name, tempAccount = fal
   // If email confirmation is disabled, session exists immediately - create Customer now (client-side)
   if (data.session && data.user) {
     console.log('✅ Session created immediately - creating Customer record (client)...');
-    const customerResult = await ensureCustomerRecord({ name, email: dummyEmail, phone });
+  // Do not persist phone-alias emails into Customer; keep email null unless real
+  const customerResult = await ensureCustomerRecord({ name, phone });
     if (!customerResult?.success) {
       console.error('❌ Failed to create Customer record after signup', customerResult?.error);
     } else {
@@ -314,10 +315,14 @@ export async function ensureCustomerRecord(overrides = {}) {
     }
 
     // Build payload
+    // Sanitize email: never persist phone-alias like '@phone.local'
+    const aliasEmail = (overrides.email || user.email || '').toString();
+    const sanitizedEmail = aliasEmail.endsWith('@phone.local') ? null : (aliasEmail || null);
+
     const payload = {
       user_id: user.id,
       name: overrides.name || user.user_metadata?.name || 'Customer',
-      email: overrides.email || user.email || null,
+      email: sanitizedEmail,
       phone: overrides.phone || user.user_metadata?.phone || null,
     };
 
