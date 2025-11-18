@@ -1,7 +1,9 @@
-// OPTION 3: API Key Authentication for Booking App
-// This approach requires API keys instead of public access
+// OPTION 3: API Key Authentication for Booking App (optional pattern)
+// This route is intended for server-to-server use only. It gates access with an x-api-key
+// and then uses a Supabase service client for privileged reads. If you don't need this
+// pattern, you can delete this file.
 
-import { createClient } from '@/utils/supabase/server'
+import { createServiceClient } from '@/utils/supabase/service'
 import { NextResponse } from 'next/server'
 import { createErrorResponse, createSuccessResponse } from '@/lib/validation';
 
