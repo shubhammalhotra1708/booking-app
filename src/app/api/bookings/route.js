@@ -1,16 +1,13 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@/utils/supabase/server';
 import { validateRequest, BookingSchema, createErrorResponse, createSuccessResponse } from '@/lib/validation';
+import { getCorsHeaders } from '@/lib/cors';
 
 // OPTIONS handler for CORS preflight requests
 export async function OPTIONS(request) {
   return new NextResponse(null, {
     status: 200,
-    headers: {
-      'Access-Control-Allow-Origin': 'http://localhost:3001',
-      'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
-      'Access-Control-Allow-Headers': 'Content-Type, Authorization',
-    },
+    headers: getCorsHeaders(request.headers.get('origin')),
   });
 }
 
@@ -103,7 +100,7 @@ export async function POST(request) {
 
     return NextResponse.json(
       createSuccessResponse(booking, 'Booking created successfully'),
-      { status: 201 }
+      { status: 201, headers: getCorsHeaders(request.headers.get('origin')) }
     );
 
   } catch (error) {
@@ -190,7 +187,7 @@ export async function GET(request) {
       }
     }
 
-    const { data: bookings, error } = await query;
+  const { data: bookings, error } = await query;
 
     if (error) {
       console.error('Error fetching bookings:', error);
@@ -214,6 +211,7 @@ export async function GET(request) {
         { 
           status: 200,
           headers: {
+            ...getCorsHeaders(request.headers.get('origin')),
             'Cache-Control': 'no-cache, no-store, must-revalidate'
           }
         }
@@ -226,6 +224,7 @@ export async function GET(request) {
       { 
         status: 200,
         headers: {
+          ...getCorsHeaders(request.headers.get('origin')),
           'Cache-Control': 'no-cache, no-store, must-revalidate'
         }
       }
@@ -298,7 +297,8 @@ export async function PUT(request) {
     // No need for localhost:3000 → localhost:3001 HTTP calls anymore
 
     return NextResponse.json(
-      createSuccessResponse(updatedBooking, 'Booking updated successfully')
+      createSuccessResponse(updatedBooking, 'Booking updated successfully'),
+      { headers: getCorsHeaders(request.headers.get('origin')) }
     );
 
   } catch (error) {
