@@ -7,6 +7,7 @@ import Navbar from '@/components/Navbar';
 import { getCurrentUser, signOut, ensureCustomerRecord, upgradeAnonymousAccount } from '@/lib/auth-helpers';
 import { createClient } from '@/utils/supabase/client';
 import { getCustomerBookings } from '@/actions/customers';
+import { logger } from '@/lib/logger';
 
 export default function MyBookings() {
   const router = useRouter();
@@ -57,7 +58,7 @@ export default function MyBookings() {
                          authUser.app_metadata?.provider === 'anonymous' ||
                          !authUser.email;
       
-      console.log('My Bookings - User status:', { 
+      logger.debug('My Bookings - User status:', { 
         id: authUser.id, 
         isAnonymous,
         email: authUser.email 
@@ -80,7 +81,7 @@ export default function MyBookings() {
       setBookings(bookingsData);
       
     } catch (error) {
-      console.error('Error:', error);
+      logger.error('Error:', error);
       setError('Failed to load your bookings');
     } finally {
       setLoading(false);
@@ -154,7 +155,7 @@ export default function MyBookings() {
       }, 1500);
       
     } catch (error) {
-      console.error('Upgrade error:', error);
+      logger.error('Upgrade error:', error);
       setUpgradeError(error.message || 'Failed to create account');
     } finally {
       setUpgradeLoading(false);

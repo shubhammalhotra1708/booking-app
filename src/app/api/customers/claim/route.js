@@ -49,7 +49,7 @@ export async function POST(request) {
       if (raw.includes('CLAIM_NOT_FOUND')) {
         return NextResponse.json(createErrorResponse('Guest profile not found', 404, null, ERROR_CODES.CLAIM_NOT_FOUND), { status: 404 });
       }
-      console.error('claim_guest_customer RPC error:', error);
+      logger.error('claim_guest_customer RPC error:', error);
       return NextResponse.json(createErrorResponse('Failed to claim profile', 500, null, ERROR_CODES.INTERNAL_ERROR), { status: 500 });
     }
 
@@ -63,7 +63,7 @@ export async function POST(request) {
       { status: 200, headers: getCorsHeaders(request.headers.get('origin')) }
     );
   } catch (err) {
-    console.error('Claim API error:', err);
+    logger.error('Claim API error:', err);
     return NextResponse.json(
       createErrorResponse('Internal server error', 500, null, ERROR_CODES.INTERNAL_ERROR),
       { status: 500 }

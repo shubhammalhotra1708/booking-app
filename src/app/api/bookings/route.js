@@ -3,6 +3,7 @@ import { createClient } from '@/utils/supabase/server';
 import { validateRequest, BookingSchema, createErrorResponse, createSuccessResponse, ERROR_CODES } from '@/lib/validation';
 import { getCorsHeaders } from '@/lib/cors';
 import { normalizePhone, findExistingCustomer } from '@/lib/identity';
+import { logger } from '@/lib/logger';
 
 // OPTIONS handler for CORS preflight requests
 export async function OPTIONS(request) {
@@ -57,7 +58,7 @@ export async function POST(request) {
 
     // Staff-service validation
     if (bookingData.staff_id) {
-      console.log('Validating staff-service mapping:', {
+      logger.debug('Validating staff-service mapping:', {
         staff_id: bookingData.staff_id,
         service_id: bookingData.service_id
       });
@@ -69,13 +70,13 @@ export async function POST(request) {
         .eq('serviceid', bookingData.service_id)
         .maybeSingle();
       
-      console.log('StaffService query result:', { 
+      logger.debug('StaffService query result:', { 
         data: staffService, 
         error: staffServiceError 
       });
       
       if (staffServiceError) {
-        console.error('StaffService query error:', staffServiceError);
+        logger.error('StaffService query error:', staffServiceError);
         return NextResponse.json(
           createErrorResponse('Failed to verify staff capabilities', 500, null, ERROR_CODES.INTERNAL_ERROR),
           { status: 500 }
@@ -83,14 +84,14 @@ export async function POST(request) {
       }
       
       if (!staffService) {
-        console.error('No StaffService mapping found for staff', bookingData.staff_id, 'and service', bookingData.service_id);
+        logger.error('No StaffService mapping found for staff', bookingData.staff_id, 'and service', bookingData.service_id);
         return NextResponse.json(
           createErrorResponse('Selected staff does not provide this service', 400, null, ERROR_CODES.INVALID_STAFF),
           { status: 400 }
         );
       }
       
-      console.log('✅ Staff-service validation passed');
+      logger.debug('✅ Staff-service validation passed');
     }
 
     // Identity resolution
@@ -128,7 +129,7 @@ export async function POST(request) {
           .select('id')
           .maybeSingle();
         if (createCustError) {
-          console.error('Auto customer creation failed:', createCustError);
+          logger.error('Auto customer creation failed:', createCustError);
           return NextResponse.json(
             createErrorResponse('Failed to create customer profile', 500, null, ERROR_CODES.AUTO_CUSTOMER_CREATE_FAILED),
             { status: 500 }
@@ -162,7 +163,7 @@ export async function POST(request) {
               { status: 409 }
             );
           }
-          console.error('Guest customer create failed:', guestError);
+          logger.error('Guest customer create failed:', guestError);
           return NextResponse.json(
             createErrorResponse('Failed to create guest customer', 500, null, ERROR_CODES.GUEST_CUSTOMER_CREATE_FAILED),
             { status: 500 }
@@ -189,7 +190,7 @@ export async function POST(request) {
     });
 
     if (rpcError) {
-      console.error('RPC book_slot error:', rpcError);
+      logger.error('RPC book_slot error:', rpcError);
       const msg = rpcError.message || '';
       if (msg.includes('SLOT_CONFLICT')) {
         return NextResponse.json(
@@ -217,7 +218,7 @@ export async function POST(request) {
       { status: 201, headers: getCorsHeaders(request.headers.get('origin')) }
     );
   } catch (error) {
-    console.error('API Error:', error);
+    logger.error('API Error:', error);
     return NextResponse.json(
       createErrorResponse('Internal server error', 500, null, ERROR_CODES.INTERNAL_ERROR),
       { status: 500 }
@@ -277,7 +278,7 @@ export async function GET(request) {
 
     const { data: bookings, error } = await query;
     if (error) {
-      console.error('Error fetching bookings:', error);
+      logger.error('Error fetching bookings:', error);
       return NextResponse.json(
         createErrorResponse('Failed to fetch bookings', 500, null, ERROR_CODES.INTERNAL_ERROR),
         { status: 500 }
@@ -314,7 +315,7 @@ export async function GET(request) {
       }
     );
   } catch (error) {
-    console.error('API Error:', error);
+    logger.error('API Error:', error);
     return NextResponse.json(
       createErrorResponse('Internal server error', 500, null, ERROR_CODES.INTERNAL_ERROR),
       { status: 500 }
@@ -368,7 +369,7 @@ export async function PUT(request) {
       .single();
 
     if (updateError) {
-      console.error('Error updating booking:', updateError);
+      logger.error('Error updating booking:', updateError);
       return NextResponse.json(
         createErrorResponse('Failed to update booking', 500),
         { status: 500 }
@@ -385,7 +386,7 @@ export async function PUT(request) {
     );
 
   } catch (error) {
-    console.error('API Error:', error);
+    logger.error('API Error:', error);
     return NextResponse.json(
       createErrorResponse('Internal server error', 500),
       { status: 500 }

@@ -56,7 +56,7 @@ export async function GET(request) {
       }
     }, 'Profile resolved'));
   } catch (err) {
-    console.error('customers/me error', err);
+    logger.error('customers/me error', err);
     return NextResponse.json(createErrorResponse('Internal server error', 500, null, ERROR_CODES.INTERNAL_ERROR), { status: 500 });
   }
 }

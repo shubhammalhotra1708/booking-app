@@ -1,3 +1,4 @@
+import { logger } from '@/lib/logger';
 import { createServiceClient } from "@/utils/supabase/service";
 
 // DEBUG ENDPOINT: Service Role Database Access
@@ -43,7 +44,7 @@ export async function GET() {
       }
     );
   } catch (err) {
-    console.error("Service debug API error:", err);
+    logger.error("Service debug API error:", err);
     return new Response(
       JSON.stringify({ 
         success: false, 

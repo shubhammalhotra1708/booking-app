@@ -1,3 +1,4 @@
+import { logger } from '@/lib/logger';
 import { NextResponse } from 'next/server';
 import { createClient } from '@/utils/supabase/server';
 import { ShopSchema, validateRequest, createErrorResponse, createSuccessResponse } from '@/lib/validation';
@@ -29,7 +30,7 @@ export async function POST(request) {
     }).select('id').single();
     
     if (shopError) {
-      console.error('Shop creation error:', shopError);
+      logger.error('Shop creation error:', shopError);
       return NextResponse.json(
         createErrorResponse('Failed to create shop', 500, shopError.message),
         { status: 500 }
@@ -46,15 +47,15 @@ export async function POST(request) {
       const { error: serviceError } = await supabase.from('Service').insert(servicesToInsert);
       
       if (serviceError) {
-        console.error('Service creation error:', serviceError);
+        logger.error('Service creation error:', serviceError);
         // Don't fail the whole request if services fail, just log it
-        console.warn('Shop created successfully but services failed:', serviceError.message);
+        logger.warn('Shop created successfully but services failed:', serviceError.message);
       }
     }
     
     return NextResponse.json(createSuccessResponse({ shopId: shop.id }, 'Shop created successfully'));
   } catch (err) {
-    console.error('API error:', err);
+    logger.error('API error:', err);
     return NextResponse.json(
       createErrorResponse('Internal server error', 500, err.message),
       { status: 500 }

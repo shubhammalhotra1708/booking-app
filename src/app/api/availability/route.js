@@ -1,3 +1,4 @@
+import { logger } from '@/lib/logger';
 import { NextResponse } from 'next/server';
 import { createClient } from '../../../utils/supabase/server';
 import { validateRequest, AvailabilitySchema, createErrorResponse, createSuccessResponse } from '../../../lib/validation';
@@ -95,7 +96,7 @@ export async function GET(request) {
         .maybeSingle();
 
       if (mappingError) {
-        console.error('Error checking staff-service mapping:', mappingError);
+        logger.error('Error checking staff-service mapping:', mappingError);
         return NextResponse.json(
           createErrorResponse('Failed to verify staff capabilities', 500),
           { status: 500 }
@@ -110,7 +111,7 @@ export async function GET(request) {
       }
 
       availableStaff = [specificStaff];
-      console.log('Verified staff can provide service:', specificStaff);
+      logger.debug('Verified staff can provide service:', specificStaff);
     } else {
       // First, check StaffService mappings for this service
       const { data: mappings, error: mappingError } = await supabase
@@ -166,11 +167,11 @@ export async function GET(request) {
     }));
 
     if (bookingsError) {
-      console.error('Error fetching bookings:', bookingsError);
+      logger.error('Error fetching bookings:', bookingsError);
     }
     
     if (process.env.NODE_ENV !== 'production') {
-      console.log('Existing bookings for', date, ':', existingBookings);
+      logger.debug('Existing bookings for', date, ':', existingBookings);
     }
 
     // Pre-compute busy intervals per staff across ALL services for the day
@@ -264,8 +265,8 @@ export async function GET(request) {
     );
 
   } catch (error) {
-    console.error('Availability API Error:', error);
-    console.error('Error stack:', error.stack);
+    logger.error('Availability API Error:', error);
+    logger.error('Error stack:', error.stack);
     return NextResponse.json(
       createErrorResponse('Internal server error', 500, error.message),
       { status: 500 }

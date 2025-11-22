@@ -2,6 +2,7 @@
 
 import { createClient } from '@/utils/supabase/client';
 import { normalizePhone } from '@/lib/identity';
+import { logger } from '@/lib/logger';
 
 /**
  * Client-side auth helpers for Supabase
@@ -47,30 +48,22 @@ export async function signUpWithEmail({ email, password, name, phone, tempAccoun
 
   // If email confirmation is disabled, session exists immediately - create Customer now (client-side)
   if (data.session && data.user) {
-    if (process.env.NODE_ENV !== 'production') {
-      console.log('✅ Session created immediately - creating Customer record (client)...');
-    }
+    logger.debug('✅ Session created immediately - creating Customer record (client)...');
     const customerResult = await ensureCustomerRecord({ name, email, phone });
     if (!customerResult?.success) {
-      console.error('❌ Failed to create Customer record after signup', customerResult?.error);
+      logger.error('❌ Failed to create Customer record after signup', customerResult?.error);
     } else {
-      if (process.env.NODE_ENV !== 'production') {
-        console.log('✅ Customer record created:', customerResult.data);
-      }
+      logger.debug('✅ Customer record created:', customerResult.data);
     }
 
     // Stamp role=customer on the server (service-key admin API)
     try {
       await fetch('/api/auth/stamp-role', { method: 'POST' });
     } catch (e) {
-      if (process.env.NODE_ENV !== 'production') {
-        console.warn('Could not stamp customer role (non-fatal):', e?.message || e);
-      }
+      logger.warn('Could not stamp customer role (non-fatal):', e?.message || e);
     }
   } else {
-    if (process.env.NODE_ENV !== 'production') {
-      console.log('⏳ No session - email confirmation required');
-    }
+    logger.debug('⏳ No session - email confirmation required');
   }
 
   return { 
@@ -100,7 +93,7 @@ export async function signInAnonymously() {
     }
     return { success: true, data };
   } catch (e) {
-    console.error('Anonymous sign-in failed', e);
+    logger.error('Anonymous sign-in failed', e);
     return { success: false, error: e.message };
   }
 }
@@ -136,10 +129,19 @@ export async function upgradeAnonymousAccount({ email, password, name, phone }) 
       }
     });
     if (error) {
+      logger.error('❌ upgradeAnonymousAccount error:', error);
+      // Check for specific error codes
+      if (error.message?.includes('email_exists') || error.status === 422) {
+        return { 
+          success: false, 
+          error: 'This email is already registered. Please sign in with your existing account or use a different email.',
+          code: 'email_exists'
+        };
+      }
       return { success: false, error: error.message };
     }
     
-    console.log('✅ Anonymous user upgraded to permanent account');
+    logger.debug('✅ Anonymous user upgraded to permanent account');
     
     // Update Customer record with email/phone if not already set
     const { data: existingCustomer } = await supa
@@ -164,9 +166,9 @@ export async function upgradeAnonymousAccount({ email, password, name, phone }) 
           .eq('user_id', user.id);
         
         if (updateErr) {
-          console.error('Failed to update Customer with new email/phone:', updateErr);
+          logger.error('Failed to update Customer with new email/phone:', updateErr);
         } else {
-          console.log('✅ Customer record updated with email/phone');
+          logger.debug('✅ Customer record updated with email/phone');
         }
       }
     } else {
@@ -176,7 +178,7 @@ export async function upgradeAnonymousAccount({ email, password, name, phone }) 
     
     return { success: true, data };
   } catch (e) {
-    console.error('upgradeAnonymousAccount error', e);
+    logger.error('upgradeAnonymousAccount error', e);
     return { success: false, error: e.message };
   }
 }
@@ -201,7 +203,7 @@ export async function signInWithEmail({ email, password }) {
     }
     return { success: true, data, error: null };
   } catch (error) {
-    console.error('Sign in error:', error);
+    logger.error('Sign in error:', error);
     return { success: false, data: null, error: error.message };
   }
 }
@@ -250,16 +252,16 @@ export async function signUpWithPhone({ phone, password, name, tempAccount = fal
 
   // If email confirmation is disabled, session exists immediately - create Customer now (client-side)
   if (data.session && data.user) {
-    console.log('✅ Session created immediately - creating Customer record (client)...');
+    logger.debug('✅ Session created immediately - creating Customer record (client)...');
   // Do not persist phone-alias emails into Customer; keep email null unless real
   const customerResult = await ensureCustomerRecord({ name, phone });
     if (!customerResult?.success) {
-      console.error('❌ Failed to create Customer record after signup', customerResult?.error);
+      logger.error('❌ Failed to create Customer record after signup', customerResult?.error);
     } else {
-      console.log('✅ Customer record created:', customerResult.data);
+      logger.debug('✅ Customer record created:', customerResult.data);
     }
   } else {
-    console.log('⏳ No session - email confirmation required');
+    logger.debug('⏳ No session - email confirmation required');
   }
 
   return { 
@@ -306,7 +308,7 @@ export async function signInWithPhone({ phone, password }) {
 
     return { success: true, data, error: null };
   } catch (error) {
-    console.error('Phone sign in error:', error);
+    logger.error('Phone sign in error:', error);
     return { success: false, data: null, error: 'Could not sign in right now. Please try again.' };
   }
 }
@@ -326,7 +328,7 @@ export async function signOut() {
     
     return { success: true, error: null };
   } catch (error) {
-    console.error('Sign out error:', error);
+    logger.error('Sign out error:', error);
     return { success: false, error: error.message };
   }
 }
@@ -350,7 +352,7 @@ export async function getCurrentUser() {
     
     return { user, error: null };
   } catch (error) {
-    console.error('Get user error:', error);
+    logger.error('Get user error:', error);
     return { user: null, error: error.message };
   }
 }
@@ -369,7 +371,7 @@ export async function getSession() {
     
     return { session, error: null };
   } catch (error) {
-    console.error('Get session error:', error);
+    logger.error('Get session error:', error);
     return { session: null, error: error.message };
   }
 }
@@ -418,7 +420,32 @@ export async function ensureCustomerRecord(overrides = {}) {
     const phoneNorm = normalizePhone(rawPhone);
     const emailCandidate = overrides.email || user.email || null;
 
-    console.log('🔍 Looking for existing Customer to claim or detect conflict:', { phoneNorm, emailCandidate });
+    logger.debug('🔍 Looking for existing Customer to claim or detect conflict:', { phoneNorm, emailCandidate });
+
+    // CRITICAL: For anonymous users, check if email exists in auth.users first!
+    if (emailCandidate && user.user_metadata?.anonymous) {
+      try {
+        const { data: isAvailable, error: checkErr } = await supa.rpc('check_email_available', { 
+          email_to_check: emailCandidate 
+        });
+        
+        if (!checkErr && isAvailable === false) {
+          logger.warn('❌ Email already registered in auth system');
+          if (typeof window !== 'undefined') window.__ensuringCustomer = false;
+          return { 
+            success: false, 
+            data: null, 
+            error: 'EMAIL_REGISTERED',
+            message: 'This email is already registered. Please sign in to continue.'
+          };
+        }
+        
+        logger.debug('✅ Email available in auth system');
+      } catch (e) {
+        // RPC might not exist yet, log but continue
+        logger.debug('ℹ️ Could not check email availability:', e.message);
+      }
+    }
 
     // Check email first (if provided)
     let existingByEmail = null;
@@ -428,16 +455,16 @@ export async function ensureCustomerRecord(overrides = {}) {
         .select('*')
         .eq('email', emailCandidate)
         .maybeSingle();
-      if (emailErr) console.error('❌ Email lookup failed:', emailErr);
+      if (emailErr) logger.error('❌ Email lookup failed:', emailErr);
       if (emailMatch) {
         existingByEmail = emailMatch;
         // If belongs to different user, conflict
         if (emailMatch.user_id && emailMatch.user_id !== user.id) {
-          console.warn('⚠️ Email already claimed by another user');
+          logger.warn('⚠️ Email already claimed by another user');
           if (typeof window !== 'undefined') window.__ensuringCustomer = false;
           return { success: false, data: null, error: 'ACCOUNT_EXISTS' };
         }
-        console.log('✅ Found Customer by email:', emailMatch.id, emailMatch.user_id ? '(claimed)' : '(guest)');
+        logger.debug('✅ Found Customer by email:', emailMatch.id, emailMatch.user_id ? '(claimed)' : '(guest)');
       }
     }
     
@@ -449,35 +476,35 @@ export async function ensureCustomerRecord(overrides = {}) {
         .select('*')
         .eq('phone_normalized', phoneNorm)
         .maybeSingle();
-      if (phoneErr) console.error('❌ Phone lookup failed:', phoneErr);
+      if (phoneErr) logger.error('❌ Phone lookup failed:', phoneErr);
       if (phoneMatch) {
         existingByPhone = phoneMatch;
         // If belongs to different user, conflict
         if (phoneMatch.user_id && phoneMatch.user_id !== user.id) {
-          console.warn('⚠️ Phone already claimed by another user');
+          logger.warn('⚠️ Phone already claimed by another user');
           if (typeof window !== 'undefined') window.__ensuringCustomer = false;
           return { success: false, data: null, error: 'ACCOUNT_EXISTS' };
         }
-        console.log('✅ Found Customer by phone:', phoneMatch.id, phoneMatch.user_id ? '(claimed)' : '(guest)');
+        logger.debug('✅ Found Customer by phone:', phoneMatch.id, phoneMatch.user_id ? '(claimed)' : '(guest)');
       }
     }
     
     const guestMatch = existingByEmail || existingByPhone;
     
     if (!guestMatch) {
-      console.log('ℹ️ No existing Customer found, will create new record');
+      logger.debug('ℹ️ No existing Customer found, will create new record');
     }
 
     // 2b. If guestMatch exists and already claimed by current user, return it
     if (guestMatch && guestMatch.user_id === user.id) {
-      console.log('✅ Customer already belongs to current user, reusing:', guestMatch.id);
+      logger.debug('✅ Customer already belongs to current user, reusing:', guestMatch.id);
       if (typeof window !== 'undefined') window.__ensuringCustomer = false;
       return { success: true, data: guestMatch, error: null };
     }
 
     // 2c. If guestMatch exists and is unclaimed (user_id IS NULL), claim it
     if (guestMatch && !guestMatch.user_id) {
-      console.log('🔗 Attempting to claim unclaimed guest customer:', guestMatch.id);
+      logger.debug('🔗 Attempting to claim unclaimed guest customer:', guestMatch.id);
       try {
         // Try RPC first
         const { error: claimErr } = await supa.rpc('claim_guest_customer', {
@@ -487,7 +514,7 @@ export async function ensureCustomerRecord(overrides = {}) {
           p_name: overrides.name || user.user_metadata?.name || guestMatch.name || 'Customer'
         });
         if (!claimErr) {
-          console.log('✅ Guest claimed via RPC');
+          logger.debug('✅ Guest claimed via RPC');
           const { data: claimed } = await supa
             .from('Customer')
             .select('*')
@@ -498,7 +525,7 @@ export async function ensureCustomerRecord(overrides = {}) {
             return { success: true, data: claimed, error: null, claimedGuest: true };
           }
         } else {
-          console.warn('⚠️ RPC claim failed:', claimErr.message);
+          logger.warn('⚠️ RPC claim failed:', claimErr.message);
           // Fallback direct update if RPC failed but RLS allows
           const { data: updated, error: updErr } = await supa
             .from('Customer')
@@ -507,15 +534,15 @@ export async function ensureCustomerRecord(overrides = {}) {
             .select('*')
             .maybeSingle();
           if (!updErr && updated) {
-            console.log('✅ Guest claimed via direct update');
+            logger.debug('✅ Guest claimed via direct update');
             if (typeof window !== 'undefined') window.__ensuringCustomer = false;
             return { success: true, data: updated, error: null, claimedGuest: true };
           } else {
-            console.warn('⚠️ Direct update also failed:', updErr?.message);
+            logger.warn('⚠️ Direct update also failed:', updErr?.message);
           }
         }
       } catch (e) {
-        console.warn('⚠️ Guest claim attempt exception:', e?.message || e);
+        logger.warn('⚠️ Guest claim attempt exception:', e?.message || e);
       }
     }
 
@@ -532,7 +559,7 @@ export async function ensureCustomerRecord(overrides = {}) {
       phone_normalized: phoneNorm || null,
     };
     
-    console.log('📝 Creating new Customer record:', { ...payload, user_id: payload.user_id?.substring(0, 8) + '...' });
+    logger.debug('📝 Creating new Customer record:', { ...payload, user_id: payload.user_id?.substring(0, 8) + '...' });
 
     // Pre-null fields that collide with someone else
     for (const field of ['email', 'phone']) {
@@ -544,7 +571,7 @@ export async function ensureCustomerRecord(overrides = {}) {
           .eq(field, payload[field])
           .maybeSingle();
         if (conflict && conflict.user_id !== user.id) {
-          console.warn(`⚠️ Conflict detected on ${field}, nulling it out`);
+          logger.warn(`⚠️ Conflict detected on ${field}, nulling it out`);
           payload[field] = null; // avoid unique violation
         }
       } catch {}
@@ -568,11 +595,11 @@ export async function ensureCustomerRecord(overrides = {}) {
       if (conflictEmail) {
         const { data: emailRow } = await supa.from('Customer').select('*').eq('email', conflictEmail).maybeSingle();
         if (emailRow && emailRow.user_id && emailRow.user_id !== user.id) {
-          console.warn('⚠️ Email conflict: belongs to different user');
+          logger.warn('⚠️ Email conflict: belongs to different user');
           ownershipConflict = true;
         }
         if (emailRow && emailRow.user_id === user.id) {
-          console.log('✅ Email conflict resolved: belongs to current user');
+          logger.debug('✅ Email conflict resolved: belongs to current user');
           if (typeof window !== 'undefined') window.__ensuringCustomer = false;
           return { success: true, data: emailRow, error: null };
         }
@@ -581,37 +608,37 @@ export async function ensureCustomerRecord(overrides = {}) {
       if (!ownershipConflict && conflictPhoneNorm) {
         const { data: phoneRow } = await supa.from('Customer').select('*').eq('phone_normalized', conflictPhoneNorm).maybeSingle();
         if (phoneRow && phoneRow.user_id && phoneRow.user_id !== user.id) {
-          console.warn('⚠️ Phone conflict: belongs to different user');
+          logger.warn('⚠️ Phone conflict: belongs to different user');
           ownershipConflict = true;
         }
         if (phoneRow && phoneRow.user_id === user.id) {
-          console.log('✅ Phone conflict resolved: belongs to current user');
+          logger.debug('✅ Phone conflict resolved: belongs to current user');
           if (typeof window !== 'undefined') window.__ensuringCustomer = false;
           return { success: true, data: phoneRow, error: null };
         }
       }
       
       if (ownershipConflict) {
-        console.warn('⚠️ Account exists with these credentials for a different user');
+        logger.warn('⚠️ Account exists with these credentials for a different user');
         if (typeof window !== 'undefined') window.__ensuringCustomer = false;
         return { success: false, data: null, error: 'ACCOUNT_EXISTS' };
       }
       
       // If we get here, conflict might be with a null user_id record (guest record not claimed)
-      console.warn('⚠️ Unique constraint conflict with unclaimed guest record:', { email: conflictEmail, phone: conflictPhoneNorm });
+      logger.warn('⚠️ Unique constraint conflict with unclaimed guest record:', { email: conflictEmail, phone: conflictPhoneNorm });
       if (typeof window !== 'undefined') window.__ensuringCustomer = false;
       return { success: false, data: null, error: 'Phone or email already registered. Please use different contact details.' };
     }
 
     if (createErr && createErr.code !== '23505') {
-      console.error('ensureCustomerRecord: insert error', createErr.message);
+      logger.error('ensureCustomerRecord: insert error', createErr.message);
       if (typeof window !== 'undefined') window.__ensuringCustomer = false;
       return { success: false, data: null, error: createErr.message };
     }
     if (typeof window !== 'undefined') window.__ensuringCustomer = false;
     return { success: true, data: created, error: null };
   } catch (e) {
-    console.error('ensureCustomerRecord: unexpected error', e);
+    logger.error('ensureCustomerRecord: unexpected error', e);
     if (typeof window !== 'undefined') window.__ensuringCustomer = false;
     return { success: false, data: null, error: e.message };
   }

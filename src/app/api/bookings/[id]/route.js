@@ -45,7 +45,7 @@ export async function GET(request, { params }) {
     );
 
   } catch (error) {
-    console.error('API Error:', error);
+    logger.error('API Error:', error);
     return NextResponse.json(
       createErrorResponse('Internal server error', 500),
       { status: 500 }
@@ -151,7 +151,7 @@ export async function PUT(request, { params }) {
       .single();
 
     if (updateError) {
-      console.error('Error updating booking:', updateError);
+      logger.error('Error updating booking:', updateError);
       return NextResponse.json(
         createErrorResponse('Failed to update booking', 500),
         { status: 500 }
@@ -164,7 +164,7 @@ export async function PUT(request, { params }) {
     );
 
   } catch (error) {
-    console.error('API Error:', error);
+    logger.error('API Error:', error);
     return NextResponse.json(
       createErrorResponse('Internal server error', 500),
       { status: 500 }
@@ -231,7 +231,7 @@ export async function DELETE(request, { params }) {
       .single();
 
     if (cancelError) {
-      console.error('Error cancelling booking:', cancelError);
+      logger.error('Error cancelling booking:', cancelError);
       return NextResponse.json(
         createErrorResponse('Failed to cancel booking', 500),
         { status: 500 }
@@ -244,7 +244,7 @@ export async function DELETE(request, { params }) {
     );
 
   } catch (error) {
-    console.error('API Error:', error);
+    logger.error('API Error:', error);
     return NextResponse.json(
       createErrorResponse('Internal server error', 500),
       { status: 500 }

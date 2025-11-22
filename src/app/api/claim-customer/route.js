@@ -1,3 +1,4 @@
+import { logger } from '@/lib/logger';
 import { NextResponse } from 'next/server';
 import { createClient } from '@/utils/supabase/server';
 import { createErrorResponse, createSuccessResponse, ERROR_CODES } from '@/lib/validation';
@@ -71,7 +72,7 @@ export async function POST(request) {
           { status: 409 }
         );
       }
-      console.error('Claim RPC error:', error);
+      logger.error('Claim RPC error:', error);
       return NextResponse.json(
         createErrorResponse('Failed to claim customer', 500, null, ERROR_CODES.INTERNAL_ERROR),
         { status: 500 }
@@ -84,7 +85,7 @@ export async function POST(request) {
       { status: 200, headers: getCorsHeaders(request.headers.get('origin')) }
     );
   } catch (err) {
-    console.error('Claim endpoint error:', err);
+    logger.error('Claim endpoint error:', err);
     return NextResponse.json(
       createErrorResponse('Internal server error', 500, null, ERROR_CODES.INTERNAL_ERROR),
       { status: 500 }

@@ -47,7 +47,7 @@ export async function POST(request) {
 
     return NextResponse.json(createSuccessResponse({ user: data.user }, 'Account upgraded'), { status: 200 });
   } catch (err) {
-    console.error('Upgrade route error', err);
+    logger.error('Upgrade route error', err);
     return NextResponse.json(createErrorResponse('Internal server error', 500, null, ERROR_CODES.INTERNAL_ERROR), { status: 500 });
   }
 }

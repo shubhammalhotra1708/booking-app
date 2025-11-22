@@ -7,6 +7,7 @@ import { ArrowLeft, ArrowRight, Clock, User, Calendar, Check } from 'lucide-reac
 import ErrorCodeAlert from '@/components/ErrorCodeAlert';
 import TempAccountBanner from '@/components/TempAccountBanner';
 import { getCurrentUser, ensureCustomerRecord, signInAnonymously } from '@/lib/auth-helpers';
+import { logger } from '@/lib/logger';
 
 function BookingFlowInner() {
   const router = useRouter();
@@ -29,9 +30,7 @@ function BookingFlowInner() {
     const month = String(today.getMonth() + 1).padStart(2, '0');
     const day = String(today.getDate()).padStart(2, '0');
     const todayString = `${year}-${month}-${day}`;
-    if (process.env.NODE_ENV !== 'production') {
-      console.log('🗓️ Initializing selectedDate to:', todayString);
-    }
+    logger.debug('🗓️ Initializing selectedDate to:', todayString);
     return todayString;
   });
   const [selectedSlot, setSelectedSlot] = useState(null);
@@ -86,9 +85,7 @@ function BookingFlowInner() {
   // Auto-fetch slots when date is set and we're on step 1
   useEffect(() => {
     if (selectedDate && step === 1 && shopId && serviceId) {
-      if (process.env.NODE_ENV !== 'production') {
-        console.log('📡 Fetching slots for date:', selectedDate);
-      }
+      logger.debug('📡 Fetching slots for date:', selectedDate);
       fetchAvailableSlots(selectedDate);
     }
   }, [selectedDate, step, shopId, serviceId]);
@@ -108,13 +105,13 @@ function BookingFlowInner() {
                            !authUser.email;
         
         if (isAnonymous) {
-          console.log('👻 Anonymous user - no prefill');
+          logger.debug('👻 Anonymous user - no prefill');
           setAuthPrefilled(true);
           return;
         }
         
         setLoggedIn(true);
-        console.log('👤 Logged user detected, pre-filling...');
+        logger.debug('👤 Logged user detected, pre-filling...');
         
         // Try to get Customer record first for most complete data
         const supabase = (await import('@/utils/supabase/client')).createClient();
@@ -125,11 +122,11 @@ function BookingFlowInner() {
           .maybeSingle();
         
         if (customerError) {
-          console.warn('⚠️ Error fetching customer:', customerError.message);
+          logger.warn('⚠️ Error fetching customer:', customerError.message);
         }
         
         if (customer) {
-          console.log('✅ Pre-filling from Customer record:', { 
+          logger.debug('✅ Pre-filling from Customer record:', { 
             name: customer.name, 
             email: customer.email,
             phone: customer.phone 
@@ -140,7 +137,7 @@ function BookingFlowInner() {
             phone: customer.phone || authUser.user_metadata?.phone || ''
           });
         } else {
-          console.log('ℹ️ No Customer record, using auth metadata');
+          logger.debug('ℹ️ No Customer record, using auth metadata');
           // Fallback to auth metadata
           const sanitizedEmail = authUser.email?.endsWith('@phone.local') ? '' : authUser.email;
           setCustomerInfo({
@@ -156,9 +153,9 @@ function BookingFlowInner() {
         // Ensure customer exists in background for smoother booking
         try { 
           await ensureCustomerRecord(); 
-          console.log('✅ Customer record ensured in background');
+          logger.debug('✅ Customer record ensured in background');
         } catch (e) {
-          console.warn('⚠️ Could not ensure customer record:', e.message);
+          logger.warn('⚠️ Could not ensure customer record:', e.message);
         }
       } catch (error) {
         console.error('❌ Error in prefillFromAuth:', error);
@@ -334,7 +331,7 @@ function BookingFlowInner() {
       
       if (!authUser) {
         // No session at all - create anonymous user
-        console.log('👤 No session found, creating anonymous user...');
+        logger.debug('👤 No session found, creating anonymous user...');
         const anonResult = await signInAnonymously();
         
         if (!anonResult.success) {
@@ -345,7 +342,7 @@ function BookingFlowInner() {
         }
         
         authUser = anonResult.data?.user;
-        console.log('✅ Anonymous user created:', authUser?.id);
+        logger.debug('✅ Anonymous user created:', authUser?.id);
       }
       
       // Check if user is anonymous
@@ -353,7 +350,7 @@ function BookingFlowInner() {
                          authUser?.app_metadata?.provider === 'anonymous' ||
                          !authUser?.email;
       
-      console.log('User status:', { 
+      logger.debug('User status:', { 
         id: authUser?.id, 
         isAnonymous, 
         email: authUser?.email 
@@ -385,7 +382,7 @@ function BookingFlowInner() {
       
       if (!isAnonymous) {
         // Logged user - check if they already have a Customer record
-        console.log('🔍 Checking for existing Customer record for logged user...');
+        logger.debug('🔍 Checking for existing Customer record for logged user...');
         const { data: existingCustomer } = await supabase
           .from('Customer')
           .select('*')
@@ -393,7 +390,7 @@ function BookingFlowInner() {
           .maybeSingle();
         
         if (existingCustomer) {
-          console.log('✅ Found existing Customer, checking if details changed...');
+          logger.debug('✅ Found existing Customer, checking if details changed...');
           
           // Check if user changed their booking details
           const nameChanged = existingCustomer.name !== customerInfo.name;
@@ -402,7 +399,7 @@ function BookingFlowInner() {
           const phoneChanged = existingCustomer.phone_normalized !== phoneNorm;
           
           if (nameChanged || emailChanged || phoneChanged) {
-            console.log('📝 User changed details during booking:', {
+            logger.debug('📝 User changed details during booking:', {
               name: nameChanged ? `${existingCustomer.name} → ${customerInfo.name}` : 'unchanged',
               email: emailChanged ? `${existingCustomer.email} → ${customerInfo.email}` : 'unchanged',
               phone: phoneChanged ? `${existingCustomer.phone} → ${customerInfo.phone}` : 'unchanged'
@@ -425,17 +422,17 @@ function BookingFlowInner() {
               // If update fails, it might be because of unique constraint conflict
               // Fall through to use existing record without update
             } else {
-              console.log('✅ Customer profile updated with new details');
+              logger.debug('✅ Customer profile updated with new details');
             }
           } else {
-            console.log('✅ Details unchanged, reusing existing Customer');
+            logger.debug('✅ Details unchanged, reusing existing Customer');
           }
           
           customerId = existingCustomer.id;
           customerRes = { success: true, data: existingCustomer };
         } else {
           // No existing Customer - create one directly for logged user
-          console.log('📝 No existing Customer found, creating new record for logged user...');
+          logger.debug('📝 No existing Customer found, creating new record for logged user...');
           const phoneNorm = normalizePhone(customerInfo.phone);
           
           const { data: newCustomer, error: createErr } = await supabase
@@ -454,14 +451,14 @@ function BookingFlowInner() {
             console.error('❌ Failed to create Customer for logged user:', createErr.message);
             customerRes = { success: false, error: createErr.message };
           } else {
-            console.log('✅ Created new Customer for logged user:', newCustomer.id);
+            logger.debug('✅ Created new Customer for logged user:', newCustomer.id);
             customerId = newCustomer.id;
             customerRes = { success: true, data: newCustomer };
           }
         }
       } else {
         // Anonymous user - use ensureCustomerRecord as before
-        console.log('👻 Anonymous user, using ensureCustomerRecord...');
+        logger.debug('👻 Anonymous user, using ensureCustomerRecord...');
         customerRes = await ensureCustomerRecord({
           name: customerInfo.name,
           email: customerInfo.email || null,
@@ -472,8 +469,11 @@ function BookingFlowInner() {
       if (!customerRes?.success || !customerRes?.data) {
         console.error('❌ Customer record creation failed:', customerRes?.error);
         
-        // Check if it's an account conflict
-        if (customerRes?.error === 'ACCOUNT_EXISTS') {
+        // Check if it's an account conflict or email already registered
+        if (customerRes?.error === 'EMAIL_REGISTERED') {
+          setBookingErrorCode('EMAIL_REGISTERED');
+          setBookingError(customerRes?.message || 'This email is already registered. Please sign in to continue.');
+        } else if (customerRes?.error === 'ACCOUNT_EXISTS') {
           setBookingErrorCode('ACCOUNT_EXISTS');
           setBookingError('An account exists with these details. Please sign in to continue.');
         } else if (customerRes?.error?.includes('Phone or email already registered')) {
@@ -497,7 +497,7 @@ function BookingFlowInner() {
       if (!customerId) {
         customerId = customerRes.data.id;
       }
-      console.log('✅ Customer record ready:', customerId);
+      logger.debug('✅ Customer record ready:', customerId);
 
       // Step 4: Create booking
       const bookingData = {
@@ -518,7 +518,7 @@ function BookingFlowInner() {
         bookingData.customer_email = customerInfo.email;
       }
 
-      console.log('📤 Sending booking request:', bookingData);
+      logger.debug('📤 Sending booking request:', bookingData);
 
       const response = await fetch('/api/bookings', {
         method: 'POST',
@@ -529,7 +529,7 @@ function BookingFlowInner() {
       const data = await response.json();
 
       if (response.ok && data.success) {
-        console.log('✅ Booking created successfully:', data.data);
+        logger.debug('✅ Booking created successfully:', data.data);
         // Redirect to my-bookings (now supports anonymous users)
         router.push(`/my-bookings?highlight=${data.data.id}`);
       } else {
