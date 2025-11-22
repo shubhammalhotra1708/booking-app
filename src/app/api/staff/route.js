@@ -26,7 +26,7 @@ export async function GET(request) {
     let query = supabase
       .from('Staff')
       .select(`
-        id, name, role, specialties, experience, rating, gender, about, shop_id
+        id, name, role, specialties, experience, rating, gender, about, shop_id, profile_image_url
       `)
       .eq('shop_id', parseInt(shopId))
       .eq('is_active', true)
