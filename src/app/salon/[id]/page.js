@@ -1,8 +1,9 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
+import Image from 'next/image';
 import Navbar from '../../../components/Navbar';
 import ReviewSection from '../../../components/ReviewSection';
 import { useShopDetails } from '../../../hooks/useApi';
@@ -15,7 +16,8 @@ import {
   PhoneIcon, 
   ClockIcon,
   HeartIcon,
-  ShareIcon 
+  ShareIcon,
+  CameraIcon
 } from '@heroicons/react/24/outline';
 import { HeartIcon as HeartSolidIcon } from '@heroicons/react/24/solid';
 
@@ -48,6 +50,59 @@ export default function SalonProfile() {
     services = salon?.services || [];
     staff = salon?.staff || [];
   }
+  
+  // Build image array with real images from DB + fallbacks
+  const salonImages = useMemo(() => {
+    const images = [];
+    
+    console.log('🎨 Building salon images for:', salon?.name, {
+      banner_url: salon?.banner_url,
+      gallery_urls: salon?.gallery_urls,
+      logo_url: salon?.logo_url,
+      old_images: salon?.images,
+      old_image: salon?.image
+    });
+    
+    // Priority 1: Banner image (hero)
+    if (salon?.banner_url) {
+      console.log('✅ Adding banner:', salon.banner_url);
+      images.push(salon.banner_url);
+    }
+    
+    // Priority 2: Gallery images
+    if (salon?.gallery_urls && Array.isArray(salon.gallery_urls)) {
+      const validGallery = salon.gallery_urls.filter(url => url);
+      console.log('✅ Adding gallery images:', validGallery.length, validGallery);
+      images.push(...validGallery);
+    }
+    
+    // Priority 3: Logo as fallback
+    if (salon?.logo_url && images.length === 0) {
+      console.log('✅ Adding logo as fallback:', salon.logo_url);
+      images.push(salon.logo_url);
+    }
+    
+    // Priority 4: Old format images (if any)
+    if (salon?.images && Array.isArray(salon.images) && images.length === 0) {
+      console.log('⚠️ Using old format images:', salon.images);
+      images.push(...salon.images);
+    }
+    
+    // Priority 5: Single image fallback
+    if (salon?.image && images.length === 0) {
+      console.log('⚠️ Using old single image:', salon.image);
+      images.push(salon.image);
+    }
+    
+    // Final fallback: placeholder
+    if (images.length === 0) {
+      console.log('❌ No images found, using placeholder');
+      images.push('/s1.jpeg');
+    }
+    
+    console.log('🖼️ Final image array:', images);
+    return images;
+  }, [salon?.banner_url, salon?.gallery_urls, salon?.logo_url, salon?.images, salon?.image]);
   
   const salonReviews = reviews.filter(review => review.salonId === salonId);
 
@@ -99,22 +154,58 @@ export default function SalonProfile() {
         {/* Enhanced Image Gallery */}
         <div className="grid grid-cols-1 lg:grid-cols-4 gap-6 mb-8">
           <div className="lg:col-span-3">
-            <div className="card-booksy overflow-hidden h-96 relative">
+            <div className="card-booksy overflow-hidden h-96 relative group">
               <img
-                src={salon.images?.[selectedImageIndex] || salon.image || '/s1.jpeg'}
-                alt={salon.name}
+                src={salonImages[selectedImageIndex]}
+                alt={`${salon.name} - Image ${selectedImageIndex + 1}`}
                 className="w-full h-full object-cover"
+                onError={(e) => {
+                  e.target.onerror = null;
+                  e.target.src = '/s1.jpeg'; // Fallback on error
+                }}
               />
+              
+              {/* Image counter badge */}
+              {salonImages.length > 1 && (
+                <div className="absolute top-4 right-4 bg-black/60 text-white px-3 py-1 rounded-full text-sm flex items-center gap-2">
+                  <CameraIcon className="h-4 w-4" />
+                  {selectedImageIndex + 1} / {salonImages.length}
+                </div>
+              )}
+              
+              {/* Navigation arrows for desktop */}
+              {salonImages.length > 1 && (
+                <>
+                  <button
+                    onClick={() => setSelectedImageIndex((prev) => (prev === 0 ? salonImages.length - 1 : prev - 1))}
+                    className="absolute left-4 top-1/2 -translate-y-1/2 bg-white/90 hover:bg-white text-gray-800 rounded-full p-3 opacity-0 group-hover:opacity-100 transition-opacity shadow-lg"
+                  >
+                    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                    </svg>
+                  </button>
+                  <button
+                    onClick={() => setSelectedImageIndex((prev) => (prev === salonImages.length - 1 ? 0 : prev + 1))}
+                    className="absolute right-4 top-1/2 -translate-y-1/2 bg-white/90 hover:bg-white text-gray-800 rounded-full p-3 opacity-0 group-hover:opacity-100 transition-opacity shadow-lg"
+                  >
+                    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                    </svg>
+                  </button>
+                </>
+              )}
+              
               {/* Image Navigation Dots */}
-              {salon.images && salon.images.length > 1 && (
+              {salonImages.length > 1 && salonImages.length <= 10 && (
                 <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2 flex space-x-2">
-                  {salon.images?.map((_, index) => (
+                  {salonImages.map((_, index) => (
                     <button
                       key={index}
                       onClick={() => setSelectedImageIndex(index)}
                       className={`w-3 h-3 rounded-full transition-all ${
-                        selectedImageIndex === index ? 'bg-white' : 'bg-white/50'
+                        selectedImageIndex === index ? 'bg-white w-8' : 'bg-white/50 hover:bg-white/75'
                       }`}
+                      aria-label={`View image ${index + 1}`}
                     />
                   ))}
                 </div>
@@ -124,19 +215,39 @@ export default function SalonProfile() {
           
           {/* Thumbnail Gallery */}
           <div className="space-y-4">
-            {salon.images.slice(1, 4).map((image, index) => (
+            {salonImages.slice(1, 4).map((image, index) => (
               <div 
                 key={index} 
-                className="card-interactive overflow-hidden h-28 cursor-pointer"
+                className="card-interactive overflow-hidden h-28 cursor-pointer relative"
                 onClick={() => setSelectedImageIndex(index + 1)}
               >
                 <img
                   src={image}
-                  alt={`${salon.name} ${index + 2}`}
-                  className="w-full h-full object-cover"
+                  alt={`${salon.name} thumbnail ${index + 2}`}
+                  className={`w-full h-full object-cover transition-all ${
+                    selectedImageIndex === index + 1 ? 'ring-4 ring-teal-500' : ''
+                  }`}
+                  onError={(e) => {
+                    e.target.onerror = null;
+                    e.target.src = '/s1.jpeg';
+                  }}
                 />
               </div>
             ))}
+            
+            {/* "View All" button if more than 4 images */}
+            {salonImages.length > 4 && (
+              <button
+                onClick={() => {
+                  // Cycle through remaining images or show modal
+                  setSelectedImageIndex(4);
+                }}
+                className="card-interactive overflow-hidden h-28 w-full bg-gray-900/80 hover:bg-gray-900 flex flex-col items-center justify-center text-white transition-colors"
+              >
+                <CameraIcon className="h-8 w-8 mb-2" />
+                <span className="text-sm font-medium">+{salonImages.length - 4} more</span>
+              </button>
+            )}
           </div>
         </div>
 
@@ -203,6 +314,16 @@ export default function SalonProfile() {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {salon.services?.map((service) => (
                   <div key={service.id} className="border border-gray-200 rounded-lg p-4">
+                    {service.image_url && (
+                      <img
+                        src={service.image_url}
+                        alt={service.name}
+                        className="w-full h-32 object-cover rounded-lg mb-3"
+                        onError={(e) => { 
+                          e.target.style.display = 'none'; 
+                        }}
+                      />
+                    )}
                     <div className="flex justify-between items-start mb-2">
                       <h3 className="font-semibold text-gray-900">{service.name}</h3>
                       <span className="text-lg font-bold text-teal-600">₹{service.price}</span>
@@ -219,6 +340,37 @@ export default function SalonProfile() {
               </div>
             </div>
 
+            {/* Photos Gallery */}
+            {salonImages.length > 1 && (
+              <div className="bg-white rounded-xl shadow-lg p-6">
+                <div className="flex items-center gap-2 mb-6">
+                  <CameraIcon className="h-6 w-6 text-gray-900" />
+                  <h2 className="text-2xl font-bold text-gray-900">
+                    Photos ({salonImages.length})
+                  </h2>
+                </div>
+                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                  {salonImages.map((image, index) => (
+                    <button
+                      key={index}
+                      onClick={() => setSelectedImageIndex(index)}
+                      className="card-interactive aspect-square overflow-hidden rounded-lg bg-gray-100 hover:ring-2 hover:ring-teal-500 transition-all"
+                    >
+                      <img
+                        src={image}
+                        alt={`${salon.name} - Photo ${index + 1}`}
+                        className="w-full h-full object-cover"
+                        onError={(e) => { 
+                          e.target.onerror = null; 
+                          e.target.src = '/s1.jpeg'; 
+                        }}
+                      />
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
             {/* Staff */}
             <div className="bg-white rounded-xl shadow-lg p-6">
               <h2 className="text-2xl font-bold text-gray-900 mb-6">Our Team</h2>
@@ -226,9 +378,13 @@ export default function SalonProfile() {
                 {salon.staff?.map((staff) => (
                   <div key={staff.id} className="text-center">
                     <img
-                      src={staff.image}
+                      src={staff.profile_image_url || staff.image || '/default-avatar.png'}
                       alt={staff.name}
                       className="w-24 h-24 rounded-full mx-auto mb-4 object-cover"
+                      onError={(e) => { 
+                        e.target.onerror = null; 
+                        e.target.src = '/default-avatar.png'; 
+                      }}
                     />
                     <h3 className="font-semibold text-gray-900 mb-1">{staff.name}</h3>
                     <p className="text-sm text-gray-600 mb-2">{staff.experience}</p>

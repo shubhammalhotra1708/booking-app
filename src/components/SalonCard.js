@@ -29,9 +29,13 @@ export default function SalonCard({ salon, showStatusBadge = true, showSpecialOf
         {/* Image Container - Fixed Height */}
         <div className="relative h-32 overflow-hidden flex-shrink-0">
           <img
-            src={salon.image || '/s1.jpeg'}
+            src={salon.logo_url || salon.banner_url || salon.image || '/s1.jpeg'}
             alt={salon.name || 'Salon'}
             className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
+            onError={(e) => { 
+              e.target.onerror = null; 
+              e.target.src = '/s1.jpeg'; 
+            }}
           />
           
           {/* Status Badge */}

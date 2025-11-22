@@ -6,11 +6,46 @@ export const transformShopData = (apiShop) => {
   
   const mainImage = apiShop.image || '/s1.jpeg';
   
+  // Parse gallery_urls if it's a JSON string array
+  let galleryUrls = [];
+  if (apiShop.gallery_urls) {
+    if (Array.isArray(apiShop.gallery_urls)) {
+      // If it's already an array, parse each JSON string to get the URL
+      galleryUrls = apiShop.gallery_urls
+        .map(item => {
+          if (typeof item === 'string') {
+            try {
+              const parsed = JSON.parse(item);
+              return parsed.url || null;
+            } catch (e) {
+              // If not JSON, assume it's a plain URL
+              return item;
+            }
+          }
+          return item?.url || item;
+        })
+        .filter(url => url);
+    }
+  }
+  
+  console.log('🖼️ Transform Shop Data:', {
+    shopId: apiShop.id,
+    shopName: apiShop.name,
+    logo_url: apiShop.logo_url,
+    banner_url: apiShop.banner_url,
+    gallery_urls_raw: apiShop.gallery_urls,
+    gallery_urls_parsed: galleryUrls
+  });
+  
   return {
     id: apiShop.id,
     name: apiShop.name || 'Unnamed Salon',
     image: mainImage,
     images: [mainImage, '/s2.jpeg', '/s3.jpeg'], // Create array with main image and fallbacks
+    // New Supabase Storage fields
+    logo_url: apiShop.logo_url || null,
+    banner_url: apiShop.banner_url || null,
+    gallery_urls: galleryUrls,
     rating: apiShop.rating || 4.5,
     reviewCount: apiShop.review_count || 0,
     price: transformPriceRange(apiShop.price_range),
@@ -44,7 +79,9 @@ export const transformServiceData = (apiService) => {
     name: apiService.name || 'Unnamed Service',
     price: apiService.price || 0,
     duration: apiService.duration ? `${apiService.duration} min` : '30 min',
-    description: apiService.description || 'No description available'
+    description: apiService.description || 'No description available',
+    // New Supabase Storage field
+    image_url: apiService.image_url || null
   };
 };
 
@@ -67,6 +104,8 @@ export const transformStaffData = (apiStaff) => {
     id: apiStaff.id,
     name: apiStaff.name || 'Staff Member',
     image: apiStaff.image || '/api/placeholder/150/150',
+    // New Supabase Storage field
+    profile_image_url: apiStaff.profile_image_url || null,
     specialties: Array.isArray(specialties) ? specialties : ['General Services'],
     experience: apiStaff.experience || 'Experience not specified',
     rating: apiStaff.rating || 4.5,
