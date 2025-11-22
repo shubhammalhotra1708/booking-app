@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { Calendar, Clock, MapPin, User, Phone, RefreshCw, CheckCircle, XCircle, AlertCircle, LogOut } from 'lucide-react';
 import Navbar from '@/components/Navbar';
-import { getCurrentUser, signOut, ensureCustomerRecord } from '@/lib/auth-helpers';
+import { getCurrentUser, signOut, ensureCustomerRecord, upgradeAnonymousAccount } from '@/lib/auth-helpers';
 import { createClient } from '@/utils/supabase/client';
 import { getCustomerBookings } from '@/actions/customers';
 
@@ -22,6 +22,14 @@ export default function MyBookings() {
   const [setupError, setSetupError] = useState('');
   const [setupSuccess, setSetupSuccess] = useState('');
   const [filter, setFilter] = useState('all'); // 'all', 'upcoming', 'past', 'pending', 'confirmed'
+  
+  // Anonymous account upgrade
+  const [upgradeEmail, setUpgradeEmail] = useState('');
+  const [upgradePwd, setUpgradePwd] = useState('');
+  const [upgradeName, setUpgradeName] = useState('');
+  const [upgradeLoading, setUpgradeLoading] = useState(false);
+  const [upgradeError, setUpgradeError] = useState('');
+  const [upgradeSuccess, setUpgradeSuccess] = useState('');
 
   useEffect(() => {
     checkAuthAndFetchBookings();
@@ -33,17 +41,29 @@ export default function MyBookings() {
     try {
       setLoading(true);
       
-      // Get current user from Supabase Auth
-  const { user: authUser } = await getCurrentUser();
+      // Get current user from Supabase Auth (includes anonymous users)
+      const { user: authUser } = await getCurrentUser();
       
       if (!authUser) {
-        router.push('/client-dashboard');
+        // No session at all - redirect to homepage
+        router.push('/');
         return;
       }
       
       setUser(authUser);
       
-      // Get or create customer record
+      // Check if user is anonymous
+      const isAnonymous = authUser.user_metadata?.anonymous || 
+                         authUser.app_metadata?.provider === 'anonymous' ||
+                         !authUser.email;
+      
+      console.log('My Bookings - User status:', { 
+        id: authUser.id, 
+        isAnonymous,
+        email: authUser.email 
+      });
+      
+      // Get or create customer record (works for both anonymous and permanent users)
       const ensureRes = await ensureCustomerRecord();
       const customerData = ensureRes?.success ? ensureRes.data : null;
 
@@ -56,7 +76,7 @@ export default function MyBookings() {
       setCustomer(customerData);
       
       // Fetch bookings by customer_id
-  const bookingsData = await getCustomerBookings(customerData.id);
+      const bookingsData = await getCustomerBookings(customerData.id);
       setBookings(bookingsData);
       
     } catch (error) {
@@ -89,6 +109,55 @@ export default function MyBookings() {
       setSetupError(e.message || 'Failed to set password');
     } finally {
       setSetupLoading(false);
+    }
+  };
+
+  const handleUpgradeAccount = async () => {
+    if (!setupPwd) {
+      setUpgradeError('Password is required');
+      return;
+    }
+    if (setupPwd.length < 6) {
+      setUpgradeError('Password must be at least 6 characters');
+      return;
+    }
+    
+    // Use customer data from booking (email already provided during booking)
+    const email = customer?.email;
+    if (!email) {
+      setUpgradeError('Email not found. Please contact support.');
+      return;
+    }
+    
+    setUpgradeLoading(true);
+    setUpgradeError('');
+    setUpgradeSuccess('');
+    
+    try {
+      const result = await upgradeAnonymousAccount({
+        email: email,
+        password: setupPwd,
+        name: customer?.name || 'Customer',
+        phone: customer?.phone || null
+      });
+      
+      if (!result.success) {
+        setUpgradeError(result.error || 'Failed to upgrade account');
+        return;
+      }
+      
+      setUpgradeSuccess('Account created! You can now sign in with your email.');
+      
+      // Refresh to show updated user state
+      setTimeout(() => {
+        checkAuthAndFetchBookings();
+      }, 1500);
+      
+    } catch (error) {
+      console.error('Upgrade error:', error);
+      setUpgradeError(error.message || 'Failed to create account');
+    } finally {
+      setUpgradeLoading(false);
     }
   };
 
@@ -184,32 +253,44 @@ export default function MyBookings() {
       <Navbar showCompactSearch={true} />
       
       <div className="max-w-4xl mx-auto px-4 py-8">
-        {/* Finish account setup (password) for temp accounts */}
-        {user?.user_metadata?.temp_account && (
+        {/* Finish account setup (password) for anonymous users */}
+        {user?.user_metadata?.anonymous && (
           <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
             <div className="flex items-start gap-3">
               <div className="bg-blue-100 p-2 rounded-full">🔐</div>
               <div className="flex-1">
-                <div className="font-semibold text-blue-900 mb-1">Finish account setup</div>
-                <div className="text-sm text-blue-800">Create a password so you can sign in later.</div>
-                <div className="mt-2 flex gap-2 items-center">
+                <div className="font-semibold text-blue-900 mb-1">Save your booking details</div>
+                <div className="text-sm text-blue-800 mb-2">
+                  Create a password for <span className="font-medium">{customer?.email || 'your account'}</span> to access your bookings anytime.
+                </div>
+                <div className="mt-2 flex gap-2 items-center flex-wrap">
                   <input
                     type="password"
                     value={setupPwd}
                     onChange={(e) => setSetupPwd(e.target.value)}
-                    placeholder="Create password"
-                    className="p-2 border rounded w-64"
+                    placeholder="Create password (6+ chars)"
+                    className="p-2 border rounded flex-1 min-w-[200px]"
                   />
                   <button
-                    onClick={handleFinishAccountSetup}
-                    disabled={setupLoading}
-                    className="px-3 py-2 bg-blue-600 text-white rounded disabled:opacity-50"
+                    onClick={handleUpgradeAccount}
+                    disabled={upgradeLoading}
+                    className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50 font-medium whitespace-nowrap"
                   >
-                    {setupLoading ? 'Saving...' : 'Save Password'}
+                    {upgradeLoading ? 'Saving...' : 'Create Account'}
                   </button>
                 </div>
-                {setupError && <div className="text-red-600 text-sm mt-2">{setupError}</div>}
-                {setupSuccess && <div className="text-green-700 text-sm mt-2">{setupSuccess}</div>}
+                {upgradeError && (
+                  <div className="text-red-600 text-sm mt-2 flex items-center gap-1">
+                    <XCircle className="h-4 w-4" />
+                    {upgradeError}
+                  </div>
+                )}
+                {upgradeSuccess && (
+                  <div className="text-green-700 text-sm mt-2 flex items-center gap-1">
+                    <CheckCircle className="h-4 w-4" />
+                    {upgradeSuccess}
+                  </div>
+                )}
               </div>
             </div>
           </div>

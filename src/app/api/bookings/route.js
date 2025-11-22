@@ -1,7 +1,8 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@/utils/supabase/server';
-import { validateRequest, BookingSchema, createErrorResponse, createSuccessResponse } from '@/lib/validation';
+import { validateRequest, BookingSchema, createErrorResponse, createSuccessResponse, ERROR_CODES } from '@/lib/validation';
 import { getCorsHeaders } from '@/lib/cors';
+import { normalizePhone, findExistingCustomer } from '@/lib/identity';
 
 // OPTIONS handler for CORS preflight requests
 export async function OPTIONS(request) {
@@ -15,59 +16,172 @@ export async function OPTIONS(request) {
 export async function POST(request) {
   try {
     const body = await request.json();
-    
-    // Validate request data
     const validation = validateRequest(BookingSchema, body);
     if (!validation.success) {
       return NextResponse.json(
-        createErrorResponse('Validation failed', 400, validation.details),
+        createErrorResponse('Validation failed', 400, validation.details, ERROR_CODES.VALIDATION_FAILED),
         { status: 400 }
       );
     }
-
-  const supabase = await createClient();
+    const supabase = await createClient();
     const bookingData = validation.data;
 
-    // Check if the shop exists and is active
+    // Shop check
     const { data: shop, error: shopError } = await supabase
       .from('Shop')
       .select('id, name, is_active')
       .eq('id', bookingData.shop_id)
       .eq('is_active', true)
       .single();
-
     if (shopError || !shop) {
       return NextResponse.json(
-        createErrorResponse('Shop not found or inactive', 404),
+        createErrorResponse('Shop not found or inactive', 404, null, ERROR_CODES.INVALID_SHOP),
         { status: 404 }
       );
     }
 
-    // Check if the service exists and belongs to the shop
+    // Service check
     const { data: service, error: serviceError } = await supabase
       .from('Service')
-      .select('id, name, price, duration, shop_id')
+      .select('id, name, price, duration, shop_id, is_active')
       .eq('id', bookingData.service_id)
       .eq('shop_id', bookingData.shop_id)
       .eq('is_active', true)
       .single();
-
     if (serviceError || !service) {
       return NextResponse.json(
-        createErrorResponse('Service not found or inactive', 404),
+        createErrorResponse('Service not found or inactive', 404, null, ERROR_CODES.INVALID_SERVICE),
         { status: 404 }
       );
     }
 
-    // Use atomic RPC to book the slot with revalidation and advisory locking
+    // Staff-service validation
+    if (bookingData.staff_id) {
+      console.log('Validating staff-service mapping:', {
+        staff_id: bookingData.staff_id,
+        service_id: bookingData.service_id
+      });
+      
+      const { data: staffService, error: staffServiceError } = await supabase
+        .from('StaffService')
+        .select('staffid, serviceid')
+        .eq('staffid', bookingData.staff_id)
+        .eq('serviceid', bookingData.service_id)
+        .maybeSingle();
+      
+      console.log('StaffService query result:', { 
+        data: staffService, 
+        error: staffServiceError 
+      });
+      
+      if (staffServiceError) {
+        console.error('StaffService query error:', staffServiceError);
+        return NextResponse.json(
+          createErrorResponse('Failed to verify staff capabilities', 500, null, ERROR_CODES.INTERNAL_ERROR),
+          { status: 500 }
+        );
+      }
+      
+      if (!staffService) {
+        console.error('No StaffService mapping found for staff', bookingData.staff_id, 'and service', bookingData.service_id);
+        return NextResponse.json(
+          createErrorResponse('Selected staff does not provide this service', 400, null, ERROR_CODES.INVALID_STAFF),
+          { status: 400 }
+        );
+      }
+      
+      console.log('✅ Staff-service validation passed');
+    }
+
+    // Identity resolution
+    let resolvedCustomerId = null;
+    const { data: { user: authUser } } = await supabase.auth.getUser();
+    const normalizedPhone = normalizePhone(bookingData.customer_phone);
+    const customerEmail = bookingData.customer_email || null;
+    if (authUser) {
+      const { data: existingCustomer } = await supabase
+        .from('Customer')
+        .select('id, user_id')
+        .eq('user_id', authUser.id)
+        .maybeSingle();
+      if (existingCustomer) {
+        resolvedCustomerId = existingCustomer.id;
+      } else if (customerEmail) {
+        const { data: emailCustomer } = await supabase
+          .from('Customer')
+          .select('id, user_id')
+          .eq('email', customerEmail)
+          .maybeSingle();
+        if (emailCustomer) resolvedCustomerId = emailCustomer.id;
+      }
+      // Auto-create Customer row if none resolved
+      if (!resolvedCustomerId) {
+        const { data: newCustomer, error: createCustError } = await supabase
+          .from('Customer')
+          .insert({
+            user_id: authUser.id,
+            name: bookingData.customer_name,
+            phone: normalizedPhone.replace('+','').length > 0 ? normalizedPhone.replace('+','').substring(normalizedPhone.startsWith('+91') ? 3 : 1) : null, // store legacy phone if needed
+            phone_normalized: normalizedPhone,
+            email: customerEmail || authUser.email || null,
+          })
+          .select('id')
+          .maybeSingle();
+        if (createCustError) {
+          console.error('Auto customer creation failed:', createCustError);
+          return NextResponse.json(
+            createErrorResponse('Failed to create customer profile', 500, null, ERROR_CODES.AUTO_CUSTOMER_CREATE_FAILED),
+            { status: 500 }
+          );
+        }
+        if (newCustomer) {
+          resolvedCustomerId = newCustomer.id;
+        }
+      }
+    } else {
+      const existing = await findExistingCustomer(supabase, { email: customerEmail, phone: normalizedPhone });
+      if (existing && existing.user_id) {
+        return NextResponse.json(
+          createErrorResponse('Account exists. Please sign in to book.', 409, null, ERROR_CODES.ACCOUNT_EXISTS),
+          { status: 409 }
+        );
+      } else if (existing && !existing.user_id) {
+        resolvedCustomerId = existing.id;
+      } else {
+        // Create guest customer row via SECURITY DEFINER RPC to avoid duplicates
+        const { data: guestCustomer, error: guestError } = await supabase.rpc('create_guest_customer', {
+          p_name: bookingData.customer_name,
+          p_phone: normalizedPhone,
+          p_email: customerEmail,
+        });
+        if (guestError) {
+          const msg = guestError.message || '';
+          if (msg.includes('ACCOUNT_EXISTS')) {
+            return NextResponse.json(
+              createErrorResponse('Account exists. Please sign in to book.', 409, null, ERROR_CODES.ACCOUNT_EXISTS),
+              { status: 409 }
+            );
+          }
+          console.error('Guest customer create failed:', guestError);
+          return NextResponse.json(
+            createErrorResponse('Failed to create guest customer', 500, null, ERROR_CODES.GUEST_CUSTOMER_CREATE_FAILED),
+            { status: 500 }
+          );
+        }
+        if (guestCustomer && guestCustomer.length > 0) {
+          resolvedCustomerId = guestCustomer[0].id;
+        }
+      }
+    }
+
     const { data: booking, error: rpcError } = await supabase.rpc('book_slot', {
       p_shop_id: bookingData.shop_id,
       p_service_id: bookingData.service_id,
       p_staff_id: bookingData.staff_id || null,
-      p_customer_id: bookingData.customer_id || null,
+      p_customer_id: resolvedCustomerId,
       p_customer_name: bookingData.customer_name,
-      p_customer_email: bookingData.customer_email || null,
-      p_customer_phone: bookingData.customer_phone,
+      p_customer_email: customerEmail,
+      p_customer_phone: normalizedPhone,
       p_date: bookingData.booking_date,
       p_time: bookingData.booking_time,
       p_duration_min: service.duration,
@@ -79,40 +193,39 @@ export async function POST(request) {
       const msg = rpcError.message || '';
       if (msg.includes('SLOT_CONFLICT')) {
         return NextResponse.json(
-          createErrorResponse('Time slot is already booked', 409),
+          createErrorResponse('Time slot is already booked', 409, null, ERROR_CODES.SLOT_CONFLICT),
           { status: 409 }
         );
       }
       if (msg.includes('INVALID_SHOP')) {
-        return NextResponse.json(createErrorResponse('Shop not found or inactive', 404), { status: 404 });
+        return NextResponse.json(createErrorResponse('Shop not found or inactive', 404, null, ERROR_CODES.INVALID_SHOP), { status: 404 });
       }
       if (msg.includes('INVALID_SERVICE')) {
-        return NextResponse.json(createErrorResponse('Service not found or inactive', 404), { status: 404 });
+        return NextResponse.json(createErrorResponse('Service not found or inactive', 404, null, ERROR_CODES.INVALID_SERVICE), { status: 404 });
       }
       if (msg.includes('INVALID_STAFF')) {
-        return NextResponse.json(createErrorResponse('Staff member not found or not available', 404), { status: 404 });
+        return NextResponse.json(createErrorResponse('Staff member not found or not available', 404, null, ERROR_CODES.INVALID_STAFF), { status: 404 });
       }
       if (msg.includes('INVALID_DURATION')) {
-        return NextResponse.json(createErrorResponse('Invalid duration', 400), { status: 400 });
+        return NextResponse.json(createErrorResponse('Invalid duration', 400, null, ERROR_CODES.INVALID_DURATION), { status: 400 });
       }
-      return NextResponse.json(createErrorResponse('Failed to create booking', 500), { status: 500 });
+      return NextResponse.json(createErrorResponse('Failed to create booking', 500, null, ERROR_CODES.INTERNAL_ERROR), { status: 500 });
     }
 
     return NextResponse.json(
-      createSuccessResponse(booking, 'Booking created successfully'),
+      createSuccessResponse({ ...booking, customer_id: resolvedCustomerId }, 'Booking created successfully'),
       { status: 201, headers: getCorsHeaders(request.headers.get('origin')) }
     );
-
   } catch (error) {
     console.error('API Error:', error);
     return NextResponse.json(
-      createErrorResponse('Internal server error', 500),
+      createErrorResponse('Internal server error', 500, null, ERROR_CODES.INTERNAL_ERROR),
       { status: 500 }
     );
   }
 }
 
-// GET /api/bookings - Get bookings for a specific shop or by booking ID (public endpoint)
+// GET /api/bookings - Retrieve bookings by shop, booking_id, customer_id, phone or email
 export async function GET(request) {
   try {
     const { searchParams } = new URL(request.url);
@@ -123,17 +236,15 @@ export async function GET(request) {
     const customerPhone = searchParams.get('customer_phone');
     const customerEmail = searchParams.get('customer_email');
     const customerId = searchParams.get('customer_id');
-    
-    // Either shop_id, booking_id, customer_id, or customer info is required
+
     if (!shopId && !bookingId && !customerId && !customerPhone && !customerEmail) {
       return NextResponse.json(
-        createErrorResponse('Shop ID, Booking ID, Customer ID, or customer info is required', 400),
+        createErrorResponse('Shop ID, Booking ID, Customer ID, or customer info is required', 400, null, ERROR_CODES.VALIDATION_FAILED),
         { status: 400 }
       );
     }
 
-  const supabase = await createClient();
-
+    const supabase = await createClient();
     let query = supabase
       .from('Booking')
       .select(`
@@ -143,72 +254,46 @@ export async function GET(request) {
         Shop!Booking_shop_id_fkey (id, name)
       `);
 
-    // If booking_id is provided, get specific booking with verification
     if (bookingId) {
-      query = query.eq('id', parseInt(bookingId));
-      
-      // For customer booking lookup, require phone or email verification
+      query = query.eq('id', parseInt(bookingId, 10));
       const phone = searchParams.get('phone');
       const email = searchParams.get('email');
-      
-      if (phone || email) {
-        // Add customer verification - they must provide either phone or email that matches
-        if (phone) {
-          query = query.eq('customer_phone', phone);
-        } else if (email) {
-          query = query.eq('customer_email', email);
-        }
-      }
+      if (phone) query = query.eq('customer_phone', phone);
+      else if (email) query = query.eq('customer_email', email);
     } else if (customerId) {
-      // Customer lookup by customer_id (for logged-in users)
-      query = query.eq('customer_id', customerId);
-      query = query.order('booking_date', { ascending: false });
+      query = query.eq('customer_id', customerId).order('booking_date', { ascending: false });
     } else if (customerPhone || customerEmail) {
-      // Customer lookup for their bookings (legacy/guest bookings)
-      if (customerPhone) {
-        query = query.eq('customer_phone', customerPhone);
-      } else if (customerEmail) {
-        query = query.eq('customer_email', customerEmail);
-      }
+      if (customerPhone) query = query.eq('customer_phone', customerPhone);
+      else if (customerEmail) query = query.eq('customer_email', customerEmail);
       query = query.order('booking_date', { ascending: false });
     } else {
-      // Otherwise, get bookings for shop with filters
       query = query
-        .eq('shop_id', parseInt(shopId))
+        .eq('shop_id', parseInt(shopId, 10))
         .order('booking_date', { ascending: false })
         .order('booking_time', { ascending: false });
-
-      // Apply filters
-      if (status) {
-        query = query.eq('status', status);
-      }
-      if (date) {
-        query = query.eq('booking_date', date);
-      }
+      if (status) query = query.eq('status', status);
+      if (date) query = query.eq('booking_date', date);
     }
 
-  const { data: bookings, error } = await query;
-
+    const { data: bookings, error } = await query;
     if (error) {
       console.error('Error fetching bookings:', error);
       return NextResponse.json(
-        createErrorResponse('Failed to fetch bookings', 500),
+        createErrorResponse('Failed to fetch bookings', 500, null, ERROR_CODES.INTERNAL_ERROR),
         { status: 500 }
       );
     }
 
-    // If looking up by booking_id, return single booking or error
     if (bookingId) {
       if (!bookings || bookings.length === 0) {
         return NextResponse.json(
-          createErrorResponse('Booking not found or credentials do not match', 404),
+          createErrorResponse('Booking not found or credentials do not match', 404, null, ERROR_CODES.INVALID_SERVICE),
           { status: 404 }
         );
       }
-      
       return NextResponse.json(
         createSuccessResponse(bookings[0], 'Booking retrieved successfully'),
-        { 
+        {
           status: 200,
           headers: {
             ...getCorsHeaders(request.headers.get('origin')),
@@ -218,10 +303,9 @@ export async function GET(request) {
       );
     }
 
-    // Otherwise return array of bookings
     return NextResponse.json(
       createSuccessResponse(bookings, 'Bookings retrieved successfully'),
-      { 
+      {
         status: 200,
         headers: {
           ...getCorsHeaders(request.headers.get('origin')),
@@ -229,11 +313,10 @@ export async function GET(request) {
         }
       }
     );
-
   } catch (error) {
     console.error('API Error:', error);
     return NextResponse.json(
-      createErrorResponse('Internal server error', 500),
+      createErrorResponse('Internal server error', 500, null, ERROR_CODES.INTERNAL_ERROR),
       { status: 500 }
     );
   }

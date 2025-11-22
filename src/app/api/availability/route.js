@@ -70,23 +70,47 @@ export async function GET(request) {
   let availableStaff = [];
     
     if (staff_id) {
-      // Check specific staff member (simplified - assume all staff can do all services)
+      // Check specific staff member AND verify they can provide this service
       const { data: specificStaff, error: staffError } = await supabase
         .from('Staff')
         .select('id, name, schedule')
         .eq('id', staff_id)
         .eq('shop_id', shop_id)
+        .eq('is_active', true)
         .single();
 
       if (staffError || !specificStaff) {
         return NextResponse.json(
-          createErrorResponse('Staff member not found', 404),
+          createErrorResponse('Staff member not found or inactive', 404),
           { status: 404 }
         );
       }
 
+      // CRITICAL: Verify this staff can provide the requested service
+      const { data: staffServiceMapping, error: mappingError } = await supabase
+        .from('StaffService')
+        .select('staffid, serviceid')
+        .eq('staffid', staff_id)
+        .eq('serviceid', service_id)
+        .maybeSingle();
+
+      if (mappingError) {
+        console.error('Error checking staff-service mapping:', mappingError);
+        return NextResponse.json(
+          createErrorResponse('Failed to verify staff capabilities', 500),
+          { status: 500 }
+        );
+      }
+
+      if (!staffServiceMapping) {
+        return NextResponse.json(
+          createErrorResponse('Selected staff does not provide this service', 400),
+          { status: 400 }
+        );
+      }
+
       availableStaff = [specificStaff];
-      console.log('Found specific staff:', specificStaff);
+      console.log('Verified staff can provide service:', specificStaff);
     } else {
       // First, check StaffService mappings for this service
       const { data: mappings, error: mappingError } = await supabase

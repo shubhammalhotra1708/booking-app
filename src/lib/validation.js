@@ -1,5 +1,22 @@
 import { z } from 'zod';
 
+// Domain error codes (expand gradually)
+export const ERROR_CODES = {
+  VALIDATION_FAILED: 'VALIDATION_FAILED',
+  SLOT_CONFLICT: 'SLOT_CONFLICT',
+  INVALID_SHOP: 'INVALID_SHOP',
+  INVALID_SERVICE: 'INVALID_SERVICE',
+  INVALID_STAFF: 'INVALID_STAFF',
+  INVALID_DURATION: 'INVALID_DURATION',
+  ACCOUNT_EXISTS: 'ACCOUNT_EXISTS',
+  GUEST_CUSTOMER_CREATE_FAILED: 'GUEST_CUSTOMER_CREATE_FAILED',
+  CLAIM_NOT_FOUND: 'CLAIM_NOT_FOUND',
+  CLAIM_CONFLICT: 'CLAIM_CONFLICT',
+  UNAUTHORIZED: 'UNAUTHORIZED',
+  AUTO_CUSTOMER_CREATE_FAILED: 'AUTO_CUSTOMER_CREATE_FAILED',
+  ANON_DISABLED: 'ANON_DISABLED',
+  INTERNAL_ERROR: 'INTERNAL_ERROR',
+};
 // Shop validation schema
 export const ShopSchema = z.object({
   shopName: z.string()
@@ -98,7 +115,8 @@ export const BookingSchema = z.object({
   status: z.enum(['pending', 'confirmed', 'rejected', 'completed', 'cancelled', 'no_show'])
     .default('pending'),
   // For logged-in users we allow client to pass the Customer PK; server will trust only when present
-  customer_id: z.string().uuid('customer_id must be a UUID').optional()
+  // nullish() allows undefined, null, or valid UUID
+  customer_id: z.string().uuid('customer_id must be a UUID').nullish()
 });
 
 // Booking update schema (allows partial updates)
@@ -125,11 +143,12 @@ export const AvailabilitySchema = z.object({
 });
 
 // Error response helper
-export function createErrorResponse(message, code = 500, details = null) {
+export function createErrorResponse(message, httpStatus = 500, details = null, errorCode = ERROR_CODES.INTERNAL_ERROR) {
   return {
     success: false,
     error: message,
-    code,
+    error_code: errorCode,
+    status: httpStatus,
     details,
     timestamp: new Date().toISOString()
   };
@@ -160,6 +179,7 @@ export function validateRequest(schema, data) {
       return {
         success: false,
         error: 'Validation failed',
+        error_code: ERROR_CODES.VALIDATION_FAILED,
         details: error.errors?.map(err => ({
           field: err.path?.join('.') || 'unknown',
           message: err.message || 'Validation error'
@@ -169,6 +189,7 @@ export function validateRequest(schema, data) {
     return {
       success: false,
       error: 'Unknown validation error',
+      error_code: ERROR_CODES.INTERNAL_ERROR,
       details: []
     };
   }
