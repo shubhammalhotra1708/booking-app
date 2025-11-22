@@ -1,3 +1,4 @@
+import { logger } from '@/lib/logger';
 import { createClient } from "@/utils/supabase/server";
 
 // DEBUG ENDPOINT: Public API Testing  
@@ -91,7 +92,7 @@ export async function GET() {
       }
     );
   } catch (err) {
-    console.error("Debug API error:", err);
+    logger.error("Debug API error:", err);
     return new Response(
       JSON.stringify({ 
         success: false, 

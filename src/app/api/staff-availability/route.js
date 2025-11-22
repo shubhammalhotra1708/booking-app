@@ -1,3 +1,4 @@
+import { logger } from '@/lib/logger';
 import { createClient } from '@/utils/supabase/server';
 
 export async function GET(request) {
@@ -30,7 +31,7 @@ export async function GET(request) {
       .eq('is_active', true);
 
     if (staffError) {
-      console.error('Staff query error:', staffError);
+      logger.error('Staff query error:', staffError);
       return Response.json({
         success: false,
         message: 'Failed to fetch staff'
@@ -64,7 +65,7 @@ export async function GET(request) {
     });
 
   } catch (error) {
-    console.error('Staff availability API error:', error);
+    logger.error('Staff availability API error:', error);
     return Response.json({
       success: false,
       message: 'Internal server error'

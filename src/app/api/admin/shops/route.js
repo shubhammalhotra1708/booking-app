@@ -30,7 +30,7 @@ export async function PUT(request) {
       .single();
 
     if (updateError) {
-      console.error('Error updating shop:', updateError);
+      logger.error('Error updating shop:', updateError);
       return NextResponse.json(
         createErrorResponse('Failed to update shop', 500),
         { status: 500 }
@@ -43,7 +43,7 @@ export async function PUT(request) {
     );
 
   } catch (error) {
-    console.error('API Error:', error);
+    logger.error('API Error:', error);
     return NextResponse.json(
       createErrorResponse('Internal server error', 500),
       { status: 500 }

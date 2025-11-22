@@ -1,3 +1,4 @@
+import { logger } from '@/lib/logger';
 import { createClient } from '@/utils/supabase/server'
 import { NextResponse } from 'next/server'
 import { createErrorResponse, createSuccessResponse } from '@/lib/validation';
@@ -25,7 +26,7 @@ export async function GET(request) {
     const { data, error } = await query;
     
     if (error) {
-      console.error('Database error:', error);
+      logger.error('Database error:', error);
       return NextResponse.json(
         createErrorResponse('Failed to fetch services', 500, error.message),
         { status: 500 }
@@ -41,7 +42,7 @@ export async function GET(request) {
       }
     );
   } catch (error) {
-    console.error('API error:', error);
+    logger.error('API error:', error);
     return NextResponse.json(
       createErrorResponse('Internal server error', 500, error.message),
       { status: 500 }
@@ -59,7 +60,7 @@ export async function POST() {
       .select('*')
       .limit(3)
 
-    console.log('Shop table check:', { existingShops, shopError })
+    logger.debug('Shop table check:', { existingShops, shopError })
 
     let shopIds = []
     
@@ -85,7 +86,7 @@ export async function POST() {
         .select('id')
 
       if (insertShopError) {
-        console.error('Error inserting shops:', insertShopError)
+        logger.error('Error inserting shops:', insertShopError)
         return NextResponse.json({ 
           success: false, 
           error: `Error creating shops: ${insertShopError.message}`,
@@ -150,7 +151,7 @@ export async function POST() {
         .select('*')
 
       if (servicesError) {
-        console.error('Error inserting services:', servicesError)
+        logger.error('Error inserting services:', servicesError)
         return NextResponse.json({ 
           success: false, 
           error: servicesError.message,
@@ -175,7 +176,7 @@ export async function POST() {
     }
 
   } catch (error) {
-    console.error('Setup error:', error)
+    logger.error('Setup error:', error)
     return NextResponse.json({ 
       success: false, 
       error: error.message 

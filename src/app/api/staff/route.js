@@ -1,3 +1,4 @@
+import { logger } from '@/lib/logger';
 import { NextResponse } from 'next/server';
 import { createClient } from '../../../utils/supabase/server';
 import { createErrorResponse, createSuccessResponse } from '../../../lib/validation';
@@ -36,7 +37,7 @@ export async function GET(request) {
     const { data: staff, error } = await query;
 
     if (error) {
-      console.error('Error fetching staff:', error);
+      logger.error('Error fetching staff:', error);
       return NextResponse.json(
         createErrorResponse('Failed to fetch staff', 500),
         { status: 500 }
@@ -63,7 +64,7 @@ export async function GET(request) {
     );
 
   } catch (error) {
-    console.error('Staff API Error:', error);
+    logger.error('Staff API Error:', error);
     return NextResponse.json(
       createErrorResponse('Internal server error', 500),
       { status: 500 }

@@ -4,7 +4,10 @@ import { Suspense, useState, useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { ArrowLeft, ArrowRight, Clock, User, Calendar, Check } from 'lucide-react';
-import { signUpWithEmail, getCurrentUser, ensureCustomerRecord } from '@/lib/auth-helpers';
+import ErrorCodeAlert from '@/components/ErrorCodeAlert';
+import TempAccountBanner from '@/components/TempAccountBanner';
+import { getCurrentUser, ensureCustomerRecord, signInAnonymously } from '@/lib/auth-helpers';
+import { logger } from '@/lib/logger';
 
 function BookingFlowInner() {
   const router = useRouter();
@@ -27,9 +30,7 @@ function BookingFlowInner() {
     const month = String(today.getMonth() + 1).padStart(2, '0');
     const day = String(today.getDate()).padStart(2, '0');
     const todayString = `${year}-${month}-${day}`;
-    if (process.env.NODE_ENV !== 'production') {
-      console.log('🗓️ Initializing selectedDate to:', todayString);
-    }
+    logger.debug('🗓️ Initializing selectedDate to:', todayString);
     return todayString;
   });
   const [selectedSlot, setSelectedSlot] = useState(null);
@@ -43,11 +44,13 @@ function BookingFlowInner() {
   });
   const [validationErrors, setValidationErrors] = useState({});
   const [authPrefilled, setAuthPrefilled] = useState(false);
+  const [authUserMeta, setAuthUserMeta] = useState(null); // store auth user metadata for tempAccount flag
   const [showInlineLogin, setShowInlineLogin] = useState(false);
   const [loginForm, setLoginForm] = useState({ email: '', password: '' });
   const [loginError, setLoginError] = useState('');
   const [loggedIn, setLoggedIn] = useState(false);
   const [bookingError, setBookingError] = useState('');
+  const [bookingErrorCode, setBookingErrorCode] = useState(null); // backend error_code for structured messaging
   const [autoAdvancedToday, setAutoAdvancedToday] = useState(false);
 
   // Load shop and service data
@@ -82,9 +85,7 @@ function BookingFlowInner() {
   // Auto-fetch slots when date is set and we're on step 1
   useEffect(() => {
     if (selectedDate && step === 1 && shopId && serviceId) {
-      if (process.env.NODE_ENV !== 'production') {
-        console.log('📡 Fetching slots for date:', selectedDate);
-      }
+      logger.debug('📡 Fetching slots for date:', selectedDate);
       fetchAvailableSlots(selectedDate);
     }
   }, [selectedDate, step, shopId, serviceId]);
@@ -93,17 +94,72 @@ function BookingFlowInner() {
   useEffect(() => {
     const prefillFromAuth = async () => {
       if (step !== 3 || authPrefilled) return;
-      const { user: authUser } = await getCurrentUser();
-      if (authUser) {
+      
+      try {
+        const { user: authUser } = await getCurrentUser();
+        if (!authUser) return;
+        
+        // Check if it's a real user (not anonymous)
+        const isAnonymous = authUser.user_metadata?.anonymous || 
+                           authUser.app_metadata?.provider === 'anonymous' ||
+                           !authUser.email;
+        
+        if (isAnonymous) {
+          logger.debug('👻 Anonymous user - no prefill');
+          setAuthPrefilled(true);
+          return;
+        }
+        
         setLoggedIn(true);
-        setCustomerInfo(ci => ({
-          name: ci.name || authUser.user_metadata?.name || '',
-          email: ci.email || authUser.email || '',
-          phone: ci.phone || authUser.user_metadata?.phone || ''
-        }));
+        logger.debug('👤 Logged user detected, pre-filling...');
+        
+        // Try to get Customer record first for most complete data
+        const supabase = (await import('@/utils/supabase/client')).createClient();
+        const { data: customer, error: customerError } = await supabase
+          .from('Customer')
+          .select('*')
+          .eq('user_id', authUser.id)
+          .maybeSingle();
+        
+        if (customerError) {
+          logger.warn('⚠️ Error fetching customer:', customerError.message);
+        }
+        
+        if (customer) {
+          logger.debug('✅ Pre-filling from Customer record:', { 
+            name: customer.name, 
+            email: customer.email,
+            phone: customer.phone 
+          });
+          setCustomerInfo({
+            name: customer.name || authUser.user_metadata?.name || '',
+            email: customer.email || authUser.email || '',
+            phone: customer.phone || authUser.user_metadata?.phone || ''
+          });
+        } else {
+          logger.debug('ℹ️ No Customer record, using auth metadata');
+          // Fallback to auth metadata
+          const sanitizedEmail = authUser.email?.endsWith('@phone.local') ? '' : authUser.email;
+          setCustomerInfo({
+            name: authUser.user_metadata?.name || '',
+            email: sanitizedEmail || '',
+            phone: authUser.user_metadata?.phone || ''
+          });
+        }
+        
+        setAuthUserMeta(authUser.user_metadata || {});
         setAuthPrefilled(true);
-        // ensure customer exists in background for smoother booking
-        try { await ensureCustomerRecord(); } catch {}
+        
+        // Ensure customer exists in background for smoother booking
+        try { 
+          await ensureCustomerRecord(); 
+          logger.debug('✅ Customer record ensured in background');
+        } catch (e) {
+          logger.warn('⚠️ Could not ensure customer record:', e.message);
+        }
+      } catch (error) {
+        console.error('❌ Error in prefillFromAuth:', error);
+        setAuthPrefilled(true); // Mark as done to prevent infinite loop
       }
     };
     prefillFromAuth();
@@ -244,7 +300,10 @@ function BookingFlowInner() {
       errors.phone = 'Please enter a valid 10-digit phone number';
     }
     
-    if (customerInfo.email && !/\S+@\S+\.\S+/.test(customerInfo.email)) {
+    // Email is now required
+    if (!customerInfo.email.trim()) {
+      errors.email = 'Email address is required';
+    } else if (!/\S+@\S+\.\S+/.test(customerInfo.email)) {
       errors.email = 'Please enter a valid email address';
     }
     
@@ -252,7 +311,7 @@ function BookingFlowInner() {
     return Object.keys(errors).length === 0;
   };
 
-    // Handle booking
+  // Booking execution (final confirmation step)
   const handleBooking = async () => {
     if (!selectedDate || !selectedSlot) {
       return;
@@ -263,97 +322,184 @@ function BookingFlowInner() {
     }
 
     setLoading(true);
+    setBookingError('');
+    setBookingErrorCode(null);
+    
     try {
-      setBookingError('');
-      // Step 1: Check if user is already logged in
-  let customerId = null;
-  let { user: authUser } = await getCurrentUser();
+      // Step 1: Ensure we have an authenticated session (either existing or anonymous)
+      let { user: authUser } = await getCurrentUser();
       
-      // Guard: sometimes session is created but not yet visible to getCurrentUser()
-      // Poll for a short window before deciding to create a new account
-      const waitForSession = async (retries = 6, delayMs = 250) => {
-        for (let i = 0; i < retries; i++) {
-          const { user } = await getCurrentUser();
-          if (user) return user;
-          await new Promise((res) => setTimeout(res, delayMs));
-        }
-        return null;
-      };
       if (!authUser) {
-        const maybeUser = await waitForSession();
-        if (maybeUser) authUser = maybeUser;
-      }
-      
-      if (authUser) {
-        // User logged in, ensure their customer record exists (client-side)
-        const customerRes = await ensureCustomerRecord();
-        if (customerRes?.success) {
-          customerId = customerRes.data.id;
-          console.log('✅ Using/created customer:', customerId);
-        } else {
-          console.warn('⚠️ Could not ensure customer record:', customerRes?.error);
-        }
-      } else {
-        // Step 2: User not logged in - create account for them
-        console.log('👤 Creating new user account...');
+        // No session at all - create anonymous user
+        logger.debug('👤 No session found, creating anonymous user...');
+        const anonResult = await signInAnonymously();
         
-        // Generate random password for the user
-        const randomPassword = Math.random().toString(36).slice(-8) + 'Ab1!';
-        
-        const signupResult = await signUpWithEmail({
-          email: customerInfo.email || `${customerInfo.phone}@phone.local`,
-          password: randomPassword,
-          name: customerInfo.name,
-          phone: customerInfo.phone,
-          tempAccount: true
-        });
-
-        if (signupResult.success && signupResult.data.user) {
-          console.log('✅ User created successfully');
-          // After signup, wait briefly for session to materialize
-          authUser = await waitForSession();
-          
-          // Ensure the customer exists (client-side with session)
-          const alias = customerInfo?.email ? null : `${customerInfo.phone}@phone.local`;
-          const customerRes = await ensureCustomerRecord({
-            name: customerInfo.name,
-            // Never persist alias emails; only pass real emails or null
-            email: customerInfo.email || null,
-            phone: customerInfo.phone,
-          });
-          if (customerRes?.success) {
-            customerId = customerRes.data.id;
-            console.log('✅ Customer record created:', customerId);
-            
-            // No longer store or show generated password. We'll ask user to
-            // set their own password via a banner on My Bookings (temp_account=true)
-          } else {
-            console.error('❌ Could not create Customer. Please try again.');
-            alert('Could not create your profile. Please try again.');
-            setLoading(false);
-            return;
-          }
-        } else {
-          console.error('❌ Could not create user account', signupResult.error);
-          const errMsg = signupResult.error || '';
-          if (errMsg.includes('already registered')) {
-            setBookingError('An account with this email already exists. Please sign in above.');
-          } else {
-            setBookingError('We could not create your account. Please sign in or try another email.');
-          }
+        if (!anonResult.success) {
+          setBookingErrorCode('ANON_DISABLED');
+          setBookingError('Could not create guest session. Please enable anonymous auth in Supabase or sign in.');
           setLoading(false);
           return;
         }
+        
+        authUser = anonResult.data?.user;
+        logger.debug('✅ Anonymous user created:', authUser?.id);
       }
+      
+      // Check if user is anonymous
+      const isAnonymous = authUser?.user_metadata?.anonymous || 
+                         authUser?.app_metadata?.provider === 'anonymous' ||
+                         !authUser?.email;
+      
+      logger.debug('User status:', { 
+        id: authUser?.id, 
+        isAnonymous, 
+        email: authUser?.email 
+      });
 
-      // Ensure we have a customerId before creating booking
-      if (!customerId) {
-        alert('We could not verify your account. Please sign in and try again.');
+      // Step 2: Check for existing claimed account with same phone/email
+      const { findExistingCustomer } = await import('@/lib/identity');
+      const { normalizePhone } = await import('@/lib/identity');
+      const supabase = (await import('@/utils/supabase/client')).createClient();
+      
+      const phoneNormalized = normalizePhone(customerInfo.phone);
+      const existingCustomer = await findExistingCustomer(supabase, {
+        email: customerInfo.email || null,
+        phone: phoneNormalized
+      });
+      
+      if (existingCustomer && existingCustomer.user_id && existingCustomer.user_id !== authUser.id) {
+        // Another user already claimed this phone/email
+        setBookingErrorCode('ACCOUNT_EXISTS');
+        setBookingError('An account exists with these details. Please sign in to continue.');
         setLoading(false);
         return;
       }
 
-      // Step 3: Create booking (requires customer_id)
+      // Step 3: Create/link Customer record for this user
+      // For logged-in (non-anonymous) users, try to reuse existing Customer
+      let customerId;
+      let customerRes;
+      
+      if (!isAnonymous) {
+        // Logged user - check if they already have a Customer record
+        logger.debug('🔍 Checking for existing Customer record for logged user...');
+        const { data: existingCustomer } = await supabase
+          .from('Customer')
+          .select('*')
+          .eq('user_id', authUser.id)
+          .maybeSingle();
+        
+        if (existingCustomer) {
+          logger.debug('✅ Found existing Customer, checking if details changed...');
+          
+          // Check if user changed their booking details
+          const nameChanged = existingCustomer.name !== customerInfo.name;
+          const emailChanged = existingCustomer.email !== customerInfo.email;
+          const phoneNorm = normalizePhone(customerInfo.phone);
+          const phoneChanged = existingCustomer.phone_normalized !== phoneNorm;
+          
+          if (nameChanged || emailChanged || phoneChanged) {
+            logger.debug('📝 User changed details during booking:', {
+              name: nameChanged ? `${existingCustomer.name} → ${customerInfo.name}` : 'unchanged',
+              email: emailChanged ? `${existingCustomer.email} → ${customerInfo.email}` : 'unchanged',
+              phone: phoneChanged ? `${existingCustomer.phone} → ${customerInfo.phone}` : 'unchanged'
+            });
+            
+            // For now: Update their profile with new details
+            // TODO: In future, add modal to ask "Update profile or just this booking?"
+            const { error: updateErr } = await supabase
+              .from('Customer')
+              .update({
+                name: customerInfo.name,
+                email: customerInfo.email,
+                phone: customerInfo.phone,
+                phone_normalized: phoneNorm
+              })
+              .eq('user_id', authUser.id);
+            
+            if (updateErr) {
+              console.error('⚠️ Could not update Customer profile:', updateErr.message);
+              // If update fails, it might be because of unique constraint conflict
+              // Fall through to use existing record without update
+            } else {
+              logger.debug('✅ Customer profile updated with new details');
+            }
+          } else {
+            logger.debug('✅ Details unchanged, reusing existing Customer');
+          }
+          
+          customerId = existingCustomer.id;
+          customerRes = { success: true, data: existingCustomer };
+        } else {
+          // No existing Customer - create one directly for logged user
+          logger.debug('📝 No existing Customer found, creating new record for logged user...');
+          const phoneNorm = normalizePhone(customerInfo.phone);
+          
+          const { data: newCustomer, error: createErr } = await supabase
+            .from('Customer')
+            .insert({
+              user_id: authUser.id,
+              name: customerInfo.name,
+              email: customerInfo.email || null,
+              phone: customerInfo.phone,
+              phone_normalized: phoneNorm
+            })
+            .select('*')
+            .maybeSingle();
+          
+          if (createErr) {
+            console.error('❌ Failed to create Customer for logged user:', createErr.message);
+            customerRes = { success: false, error: createErr.message };
+          } else {
+            logger.debug('✅ Created new Customer for logged user:', newCustomer.id);
+            customerId = newCustomer.id;
+            customerRes = { success: true, data: newCustomer };
+          }
+        }
+      } else {
+        // Anonymous user - use ensureCustomerRecord as before
+        logger.debug('👻 Anonymous user, using ensureCustomerRecord...');
+        customerRes = await ensureCustomerRecord({
+          name: customerInfo.name,
+          email: customerInfo.email || null,
+          phone: customerInfo.phone,
+        });
+      }
+      
+      if (!customerRes?.success || !customerRes?.data) {
+        console.error('❌ Customer record creation failed:', customerRes?.error);
+        
+        // Check if it's an account conflict or email already registered
+        if (customerRes?.error === 'EMAIL_REGISTERED') {
+          setBookingErrorCode('EMAIL_REGISTERED');
+          setBookingError(customerRes?.message || 'This email is already registered. Please sign in to continue.');
+        } else if (customerRes?.error === 'ACCOUNT_EXISTS') {
+          setBookingErrorCode('ACCOUNT_EXISTS');
+          setBookingError('An account exists with these details. Please sign in to continue.');
+        } else if (customerRes?.error?.includes('Phone or email already registered')) {
+          setBookingErrorCode('ACCOUNT_EXISTS');
+          setBookingError('This phone number or email is already registered. Please sign in or use different contact details.');
+        } else if (customerRes?.error?.includes('duplicate key value')) {
+          setBookingErrorCode('ACCOUNT_EXISTS');
+          setBookingError('An account with this phone or email already exists. Please sign in to link your bookings.');
+        } else {
+          setBookingErrorCode('CUSTOMER_CREATE_FAILED');
+          setBookingError('Could not create your profile. Please try again or contact support.');
+        }
+        
+        setLoading(false);
+        
+        // Scroll to top to show error
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+        return;
+      }
+      
+      if (!customerId) {
+        customerId = customerRes.data.id;
+      }
+      logger.debug('✅ Customer record ready:', customerId);
+
+      // Step 4: Create booking
       const bookingData = {
         shop_id: parseInt(shopId),
         service_id: parseInt(serviceId),
@@ -363,7 +509,7 @@ function BookingFlowInner() {
         customer_phone: customerInfo.phone,
         customer_id: customerId,
       };
-
+      
       if (selectedStaff) {
         bookingData.staff_id = selectedStaff.id;
       }
@@ -371,6 +517,8 @@ function BookingFlowInner() {
       if (customerInfo.email && customerInfo.email.trim()) {
         bookingData.customer_email = customerInfo.email;
       }
+
+      logger.debug('📤 Sending booking request:', bookingData);
 
       const response = await fetch('/api/bookings', {
         method: 'POST',
@@ -381,24 +529,66 @@ function BookingFlowInner() {
       const data = await response.json();
 
       if (response.ok && data.success) {
-        // Step 4: Always redirect to My Bookings (user is signed in now)
+        logger.debug('✅ Booking created successfully:', data.data);
+        // Redirect to my-bookings (now supports anonymous users)
         router.push(`/my-bookings?highlight=${data.data.id}`);
       } else {
-        if (response.status === 409 || (data.error || '').toLowerCase().includes('time slot')) {
-          setBookingError('That time was just taken. Please pick a different slot.');
-        } else if (response.status === 404) {
-          setBookingError('Service or staff is unavailable for this shop. Please try another option.');
-        } else {
-          setBookingError(data.error || 'Booking failed. Please try again.');
+        console.error('❌ Booking failed:', data);
+        // Structured error_code awareness
+        const code = data.error_code;
+        setBookingErrorCode(code || null);
+        
+        switch (code) {
+          case 'VALIDATION_FAILED':
+            setBookingError('Please check your information and try again.');
+            console.error('Validation details:', data.details);
+            break;
+          case 'SLOT_CONFLICT':
+            setBookingError('That time was just taken. Please pick a different slot.');
+            break;
+          case 'INVALID_STAFF':
+            setBookingError('Selected staff no longer provides this service. Please reselect.');
+            break;
+          case 'ACCOUNT_EXISTS':
+            setBookingError('An account exists with these details. Please sign in to link your bookings.');
+            break;
+          case 'CLAIM_CONFLICT':
+            setBookingError('Another account already claimed this phone/email. Please sign in with the original account.');
+            break;
+          case 'GUEST_CUSTOMER_CREATE_FAILED':
+            setBookingError('We could not create your guest profile. Please retry or sign in.');
+            break;
+          case 'AUTO_CUSTOMER_CREATE_FAILED':
+            setBookingError('Account setup incomplete. Please refresh or contact support.');
+            break;
+          default:
+            if (response.status === 404) {
+              setBookingError('Service or staff is unavailable for this shop. Please try another option.');
+            } else if (response.status === 400) {
+              setBookingError(data.error || 'Invalid booking information. Please check all fields.');
+            } else {
+              setBookingError(data.error || 'Booking failed. Please try again.');
+            }
         }
       }
     } catch (error) {
       console.error('Booking error:', error);
       setBookingError('Booking failed: Network error');
+      setBookingErrorCode('NETWORK_ERROR');
     } finally {
       setLoading(false);
     }
   };
+
+  // Step advancement from contact info to confirmation
+  const goToConfirmation = () => {
+    if (!validateForm()) return;
+    goToStep(4);
+  };
+
+  const formatDateLong = (dateStr) => new Date(dateStr).toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' });
+  const servicePrice = typeof service === 'object' ? service?.price : null;
+  const totalPrice = servicePrice || 0; // extend later for add-ons, taxes
 
   if (!shop || !service) {
     return (
@@ -447,6 +637,11 @@ function BookingFlowInner() {
               />
             ))}
           </div>
+          {loggedIn && authUserMeta?.tempAccount && (
+            <div className="mt-4">
+              <TempAccountBanner onSetPassword={() => router.push('/my-bookings?set_password=1')} />
+            </div>
+          )}
         </div>
       </div>
 
@@ -587,9 +782,7 @@ function BookingFlowInner() {
         {step === 3 && (
           <div className="space-y-6">
             {bookingError && (
-              <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-md">
-                {bookingError}
-              </div>
+              <ErrorCodeAlert code={bookingErrorCode} message={bookingError} />
             )}
             <div>
               <h2 className="text-2xl font-bold text-gray-900 mb-2">Your Information</h2>
@@ -724,7 +917,7 @@ function BookingFlowInner() {
               </div>
               
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Email (optional)</label>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Email *</label>
                 <input
                   type="email"
                   value={customerInfo.email}
@@ -745,15 +938,109 @@ function BookingFlowInner() {
                   <p className="text-red-500 text-sm mt-1">{validationErrors.email}</p>
                 )}
               </div>
+              
+              {/* Only show guest account message for non-logged users */}
+              {!loggedIn && (
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+                  <p className="text-sm text-blue-800">
+                    💡 We'll create a guest account for you. After booking, you can set a password to access your bookings anytime.
+                  </p>
+                </div>
+              )}
+              
+              {/* Show update message for logged users */}
+              {loggedIn && (
+                <div className="bg-green-50 border border-green-200 rounded-lg p-3">
+                  <p className="text-sm text-green-800">
+                    ✅ Booking as <span className="font-medium">{customerInfo.email || 'registered user'}</span>. You can update your details above if needed.
+                  </p>
+                </div>
+              )}
             </div>
 
-            <button
-              onClick={handleBooking}
-              disabled={!customerInfo.name || !customerInfo.phone || loading}
-              className="w-full bg-blue-600 text-white py-3 px-4 rounded-lg font-medium hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors"
-            >
-              {loading ? 'Booking...' : 'Confirm Booking'}
-            </button>
+            <div className="flex flex-col sm:flex-row gap-4">
+              <button
+                onClick={goBack}
+                type="button"
+                className="w-full sm:w-1/3 bg-white border border-gray-300 text-gray-700 py-3 px-4 rounded-lg font-medium hover:bg-gray-50 transition-colors"
+              >
+                Back
+              </button>
+              <button
+                onClick={goToConfirmation}
+                disabled={!customerInfo.name || !customerInfo.phone || !customerInfo.email || loading}
+                className="w-full sm:flex-1 bg-blue-600 text-white py-3 px-4 rounded-lg font-medium hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors"
+              >
+                {loading ? 'Validating...' : 'Review & Confirm'}
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Step 4: Confirmation Panel */}
+        {step === 4 && (
+          <div className="space-y-6">
+            {bookingError && (
+              <ErrorCodeAlert code={bookingErrorCode} message={bookingError} />
+            )}
+            <div>
+              <h2 className="text-2xl font-bold text-gray-900 mb-2">Review & Confirm</h2>
+              <p className="text-gray-600">Double-check your booking details before finalizing.</p>
+            </div>
+            <div className="grid gap-4">
+              <div className="bg-white border rounded-lg p-4 space-y-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm font-medium text-gray-600">Date & Time</span>
+                  <span className="text-sm text-gray-900">{formatDateLong(selectedDate)} @ {selectedSlot?.time}</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-sm font-medium text-gray-600">Service</span>
+                  <span className="text-sm text-gray-900">{service?.name} {servicePrice ? `₹${servicePrice}` : ''}</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-sm font-medium text-gray-600">Staff</span>
+                  <span className="text-sm text-gray-900">{selectedStaff?.name || 'Any available staff'}</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-sm font-medium text-gray-600">Duration</span>
+                  <span className="text-sm text-gray-900">{service?.duration ? `${service.duration} min` : '—'}</span>
+                </div>
+                <div className="border-t pt-3 mt-2 flex items-center justify-between">
+                  <span className="text-sm font-semibold text-gray-800">Total</span>
+                  <span className="text-base font-bold text-gray-900">{totalPrice ? `₹${totalPrice}` : 'N/A'}</span>
+                </div>
+              </div>
+              <div className="bg-white border rounded-lg p-4 space-y-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm font-medium text-gray-600">Name</span>
+                  <span className="text-sm text-gray-900">{customerInfo.name}</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-sm font-medium text-gray-600">Phone</span>
+                  <span className="text-sm text-gray-900">{customerInfo.phone}</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-sm font-medium text-gray-600">Email</span>
+                  <span className="text-sm text-gray-900">{customerInfo.email || '—'}</span>
+                </div>
+              </div>
+            </div>
+            <div className="flex flex-col sm:flex-row gap-4">
+              <button
+                onClick={() => goToStep(3)}
+                type="button"
+                className="w-full sm:w-1/3 bg-white border border-gray-300 text-gray-700 py-3 px-4 rounded-lg font-medium hover:bg-gray-50 transition-colors"
+              >
+                Edit Details
+              </button>
+              <button
+                onClick={handleBooking}
+                disabled={loading}
+                className="w-full sm:flex-1 bg-green-600 text-white py-3 px-4 rounded-lg font-medium hover:bg-green-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors flex items-center justify-center space-x-2"
+              >
+                {loading ? 'Saving...' : (<><Check className="h-5 w-5" /><span>Confirm Booking</span></>)}
+              </button>
+            </div>
           </div>
         )}
       </div>

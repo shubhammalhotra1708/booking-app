@@ -31,24 +31,7 @@ const nextConfig = {
           },
         ],
       },
-      // CORS headers for API routes (allow salon-admin to call booking-app APIs)
-      {
-        source: '/api/(.*)',
-        headers: [
-          {
-            key: 'Access-Control-Allow-Origin',
-            value: process.env.ADMIN_ORIGIN || 'http://localhost:3001',
-          },
-          {
-            key: 'Access-Control-Allow-Methods',
-            value: 'GET, POST, PUT, DELETE, OPTIONS',
-          },
-          {
-            key: 'Access-Control-Allow-Headers',
-            value: 'Content-Type, Authorization',
-          },
-        ],
-      },
+      // Base security headers; dynamic CORS now handled per-route via util
       {
         source: '/api/(.*)',
         headers: [

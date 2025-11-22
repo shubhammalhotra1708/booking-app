@@ -46,7 +46,7 @@ export async function GET(request) {
     const { data: bookings, error, count } = await query;
 
     if (error) {
-      console.error('Error fetching bookings:', error);
+      logger.error('Error fetching bookings:', error);
       return NextResponse.json(
         createErrorResponse('Failed to fetch bookings', 500),
         { status: 500 }
@@ -84,7 +84,7 @@ export async function GET(request) {
     );
 
   } catch (error) {
-    console.error('API Error:', error);
+    logger.error('API Error:', error);
     return NextResponse.json(
       createErrorResponse('Internal server error', 500),
       { status: 500 }
@@ -154,7 +154,7 @@ export async function PUT(request) {
       .single();
 
     if (updateError) {
-      console.error('Error updating booking:', updateError);
+      logger.error('Error updating booking:', updateError);
       return NextResponse.json(
         createErrorResponse('Failed to update booking', 500),
         { status: 500 }
@@ -170,7 +170,7 @@ export async function PUT(request) {
     );
 
   } catch (error) {
-    console.error('API Error:', error);
+    logger.error('API Error:', error);
     return NextResponse.json(
       createErrorResponse('Internal server error', 500),
       { status: 500 }

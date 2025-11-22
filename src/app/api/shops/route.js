@@ -1,3 +1,4 @@
+import { logger } from '@/lib/logger';
 import { createClient } from '@/utils/supabase/server'
 import { NextResponse } from 'next/server'
 import { createErrorResponse, createSuccessResponse } from '@/lib/validation';
@@ -105,7 +106,7 @@ export async function GET(request) {
     const { data, error } = await query;
     
     if (error) {
-      console.error('Database error:', error);
+      logger.error('Database error:', error);
       return NextResponse.json(
         createErrorResponse('Failed to fetch shops', 500, error.message),
         { status: 500 }
@@ -125,7 +126,7 @@ export async function GET(request) {
       }
     );
   } catch (error) {
-    console.error('Shops API error:', error);
+    logger.error('Shops API error:', error);
     return NextResponse.json(
       createErrorResponse('Internal server error', 500, error.message),
       { status: 500 }
