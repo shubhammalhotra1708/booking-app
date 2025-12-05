@@ -2,6 +2,7 @@ import { logger } from '@/lib/logger';
 import { NextResponse } from 'next/server';
 import { createClient } from '../../../utils/supabase/server';
 import { validateRequest, AvailabilitySchema, createErrorResponse, createSuccessResponse } from '../../../lib/validation';
+import { getTodayIST, getCurrentMinutesIST, isTodayIST, timeToMinutes, logISTTime } from '../../../utils/timezone';
 
 // GET /api/availability - Check available time slots
 export async function GET(request) {
@@ -186,16 +187,30 @@ export async function GET(request) {
       busyMap
     );
 
-    // Filter out past-time slots when the requested date is today (local time)
-    const today = new Date();
-    const yyyy = today.getFullYear();
-    const mm = String(today.getMonth() + 1).padStart(2, '0');
-    const dd = String(today.getDate()).padStart(2, '0');
-    const todayStr = `${yyyy}-${mm}-${dd}`;
-    if (date === todayStr) {
-      const currentMinutes = today.getHours() * 60 + today.getMinutes();
+    // 🕐 Filter out past-time slots when the requested date is today (IST timezone)
+    if (process.env.NODE_ENV !== 'production') {
+      logISTTime(); // Log current IST time for debugging
+    }
+    
+    const todayIST = getTodayIST();
+    if (date === todayIST) {
+      const currentMinutesIST = getCurrentMinutesIST();
       const buffer = 10; // minutes buffer before allowing a slot today
-      allSlots = allSlots.filter((slot) => timeToMinutes(slot.time) >= (currentMinutes + buffer));
+      
+      logger.debug(`🕐 Filtering slots for today (IST): Current time is ${Math.floor(currentMinutesIST/60)}:${currentMinutesIST%60}, buffer: ${buffer} min`);
+      
+      allSlots = allSlots.filter((slot) => {
+        const slotMinutes = timeToMinutes(slot.time);
+        const isAvailable = slotMinutes >= (currentMinutesIST + buffer);
+        
+        if (!isAvailable && process.env.NODE_ENV !== 'production') {
+          logger.debug(`  ⏭️ Skipping past slot: ${slot.time} (${slotMinutes} min < ${currentMinutesIST + buffer} min)`);
+        }
+        
+        return isAvailable;
+      });
+      
+      logger.debug(`📊 After IST filtering: ${allSlots.length} slots remaining`);
     }
 
     // If a specific staff was selected, filter and modify slots for that staff
@@ -367,10 +382,7 @@ function buildBusyMap(bookings) {
 }
 
 // Helper functions
-function timeToMinutes(timeStr) {
-  const [hours, minutes] = timeStr.split(':').map(Number);
-  return hours * 60 + minutes;
-}
+// timeToMinutes is now imported from timezone.js
 
 function minutesToTime(minutes) {
   const hours = Math.floor(minutes / 60);
