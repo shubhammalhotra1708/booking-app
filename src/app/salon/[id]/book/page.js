@@ -169,9 +169,13 @@ export default function BookingPage() {
         <div className="bg-white rounded-lg shadow-sm p-6 mb-6">
           <div className="flex items-start space-x-4">
             <img
-              src={salon.image || '/api/placeholder/80/80'}
+              src={salon.logo_url || salon.banner_url || salon.image || '/s1.jpeg'}
               alt={salon.name}
               className="w-20 h-20 rounded-lg object-cover"
+              onError={(e) => { 
+                e.target.onerror = null; 
+                e.target.src = '/s1.jpeg'; 
+              }}
             />
             <div className="flex-1">
               <h2 className="text-2xl font-bold text-gray-900 mb-2">{salon.name}</h2>
@@ -182,7 +186,7 @@ export default function BookingPage() {
                 </div>
                 <div className="flex items-center">
                   <MapPin className="w-4 h-4 mr-1" />
-                  <span>{salon.location}</span>
+                  <span>{salon.address}</span>
                 </div>
               </div>
               <p className="text-gray-700">{salon.description}</p>
@@ -215,21 +219,33 @@ export default function BookingPage() {
                     onClick={() => handleServiceSelect(service)}
                   >
                     <div className="flex justify-between items-start">
-                      <div className="flex-1">
-                        <h4 className="font-semibold text-gray-900 mb-1">
-                          {service.name}
-                        </h4>
-                        <p className="text-gray-600 text-sm mb-3">
-                          {service.description}
-                        </p>
-                        <div className="flex items-center space-x-4 text-sm text-gray-500">
-                          <div className="flex items-center">
-                            <Clock className="w-4 h-4 mr-1" />
-                            <span>{service.duration} min</span>
-                          </div>
-                          <div className="flex items-center">
-                            <span className="mr-1">₹</span>
-                            <span>{service.price}</span>
+                      <div className="flex items-start space-x-4 flex-1">
+                        {service.image_url && (
+                          <img
+                            src={service.image_url}
+                            alt={service.name}
+                            className="w-16 h-16 rounded-lg object-cover"
+                            onError={(e) => { 
+                              e.target.style.display = 'none'; 
+                            }}
+                          />
+                        )}
+                        <div className="flex-1">
+                          <h4 className="font-semibold text-gray-900 mb-1">
+                            {service.name}
+                          </h4>
+                          <p className="text-gray-600 text-sm mb-3">
+                            {service.description}
+                          </p>
+                          <div className="flex items-center space-x-4 text-sm text-gray-500">
+                            <div className="flex items-center">
+                              <Clock className="w-4 h-4 mr-1" />
+                              <span>{service.duration}</span>
+                            </div>
+                            <div className="flex items-center">
+                              <span className="mr-1">₹</span>
+                              <span>{service.price}</span>
+                            </div>
                           </div>
                         </div>
                       </div>

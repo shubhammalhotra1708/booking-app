@@ -3,7 +3,7 @@
 import { Suspense, useState, useEffect, useRef } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
-import { ArrowLeft, ArrowRight, Clock, User, Calendar, Check } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Clock, User, Calendar, Check, MapPin } from 'lucide-react';
 import ErrorCodeAlert from '@/components/ErrorCodeAlert';
 import TempAccountBanner from '@/components/TempAccountBanner';
 import { getCurrentUser, ensureCustomerRecord, signInAnonymously } from '@/lib/auth-helpers';
@@ -666,39 +666,61 @@ function BookingFlowInner() {
   return (
     <div className="min-h-screen bg-gray-50" key={`service-${serviceId}`}>
       {/* Header */}
-      <div className="bg-white shadow-sm border-b">
-        <div className="container-booksy">
-          <div className="flex items-center justify-between h-16 py-3">
+      <div className="bg-white shadow-sm border-b sticky top-0 z-50">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          {/* Top Bar */}
+          <div className="flex items-center justify-between h-16">
             <div className="flex items-center space-x-4">
-              <Link href="/" className="text-xl font-semibold text-gray-800 hover:text-sky-500">
+              <Link href="/" className="text-xl font-bold text-sky-600 hover:text-sky-700 transition-colors">
                 BookEz
               </Link>
+              <div className="h-6 w-px bg-gray-300"></div>
               <button
                 onClick={goBack}
-                className="flex items-center text-gray-600 hover:text-gray-900"
+                className="flex items-center text-gray-600 hover:text-gray-900 transition-colors"
               >
                 <ArrowLeft className="h-5 w-5 mr-1" />
-                Back
+                <span className="text-sm font-medium">Back</span>
               </button>
             </div>
-            <div className="text-center">
-              <h1 className="text-lg font-semibold">{service?.name || 'Loading...'}</h1>
-              <p className="text-sm text-gray-600">{shop?.name || ''}</p>
+            
+            {/* Service & Shop Info - Centered */}
+            <div className="flex-1 text-center px-4">
+              <div className="max-w-md mx-auto">
+                <h1 className="text-xl font-bold text-gray-900 mb-0.5 truncate">
+                  {service?.name || 'Loading...'}
+                </h1>
+                <div className="flex items-center justify-center text-sm text-gray-600">
+                  <MapPin className="h-3.5 w-3.5 mr-1" />
+                  <span className="truncate">{shop?.name || ''}</span>
+                </div>
+              </div>
             </div>
-            <div className="w-24"></div> {/* Spacer */}
+            
+            {/* Spacer for balance */}
+            <div className="w-24"></div>
           </div>
           
           {/* Progress indicator */}
-          <div className="flex items-center justify-center mt-4 space-x-2">
-            {[1, 2, 3, 4].map((stepNum) => (
-              <div
-                key={stepNum}
-                className={`h-2 w-8 rounded-full ${
-                  stepNum <= step ? 'bg-blue-500' : 'bg-gray-200'
-                }`}
-              />
-            ))}
+          <div className="pb-4">
+            <div className="flex items-center justify-center space-x-2">
+              {[1, 2, 3, 4].map((stepNum) => (
+                <div key={stepNum} className="flex flex-col items-center">
+                  <div
+                    className={`h-2 w-16 rounded-full transition-colors ${
+                      stepNum <= step ? 'bg-sky-500' : 'bg-gray-200'
+                    }`}
+                  />
+                  <span className={`text-xs mt-1 font-medium ${
+                    stepNum <= step ? 'text-sky-600' : 'text-gray-400'
+                  }`}>
+                    {stepNum === 1 ? 'Date' : stepNum === 2 ? 'Staff' : stepNum === 3 ? 'Details' : 'Confirm'}
+                  </span>
+                </div>
+              ))}
+            </div>
           </div>
+          
           {loggedIn && authUserMeta?.tempAccount && (
             <div className="mt-4">
               <TempAccountBanner onSetPassword={() => router.push('/my-bookings?set_password=1')} />

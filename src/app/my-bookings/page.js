@@ -41,6 +41,7 @@ export default function MyBookings() {
   const checkAuthAndFetchBookings = async () => {
     try {
       setLoading(true);
+      setError(''); // Clear previous errors
       
       // Get current user from Supabase Auth (includes anonymous users)
       const { user: authUser } = await getCurrentUser();
@@ -81,8 +82,14 @@ export default function MyBookings() {
       setBookings(bookingsData);
       
     } catch (error) {
-      logger.error('Error:', error);
-      setError('Failed to load your bookings');
+      logger.error('Error loading bookings:', error);
+      
+      // Check if it's a network error
+      if (error.message?.includes('Failed to fetch') || error.message?.includes('network')) {
+        setError('Network error. Please check your internet connection and try again.');
+      } else {
+        setError('Failed to load your bookings. Please try again.');
+      }
     } finally {
       setLoading(false);
     }
@@ -178,7 +185,7 @@ export default function MyBookings() {
   const getStatusIcon = (status) => {
     switch (status) {
       case 'pending':
-        return <AlertCircle className="h-5 w-5 text-yellow-500" />;
+        return <Clock className="h-5 w-5 text-blue-500" />;
       case 'confirmed':
         return <CheckCircle className="h-5 w-5 text-green-500" />;
       case 'completed':
@@ -187,7 +194,7 @@ export default function MyBookings() {
       case 'rejected':
         return <XCircle className="h-5 w-5 text-red-500" />;
       default:
-        return <AlertCircle className="h-5 w-5 text-gray-500" />;
+        return <Calendar className="h-5 w-5 text-gray-500" />;
     }
   };
 
@@ -325,13 +332,6 @@ export default function MyBookings() {
               <RefreshCw className={`h-4 w-4 mr-2 ${refreshing ? 'animate-spin' : ''}`} />
               Refresh
             </button>
-            <button
-              onClick={handleLogout}
-              className="inline-flex items-center px-4 py-2 bg-red-600 text-white rounded-lg text-sm font-medium hover:bg-red-700"
-            >
-              <LogOut className="h-4 w-4 mr-2" />
-              Logout
-            </button>
           </div>
         </div>
 
@@ -361,7 +361,20 @@ export default function MyBookings() {
         {/* Error Message */}
         {error && (
           <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-6">
-            <div className="text-red-600">{error}</div>
+            <div className="flex items-start gap-3">
+              <AlertCircle className="h-5 w-5 text-red-600 mt-0.5 flex-shrink-0" />
+              <div className="flex-1">
+                <div className="text-red-800 font-medium">Unable to load bookings</div>
+                <div className="text-red-600 text-sm mt-1">{error}</div>
+              </div>
+              <button
+                onClick={checkAuthAndFetchBookings}
+                className="px-3 py-1.5 bg-red-100 text-red-700 rounded hover:bg-red-200 font-medium text-sm flex items-center gap-1.5"
+              >
+                <RefreshCw className="h-4 w-4" />
+                Retry
+              </button>
+            </div>
           </div>
         )}
 
@@ -400,9 +413,6 @@ export default function MyBookings() {
                       <h3 className="font-semibold text-lg text-gray-900">
                         {booking.Service?.name}
                       </h3>
-                      <p className="text-sm text-gray-600">
-                        Booking #{booking.id.toString().slice(-6)}
-                      </p>
                     </div>
                   </div>
                   <span className="px-3 py-1 text-xs font-medium bg-white rounded-full border capitalize">
@@ -426,7 +436,7 @@ export default function MyBookings() {
                     </div>
                     <div className="flex items-center space-x-2 text-gray-700">
                       <Clock className="h-4 w-4" />
-                      <span>{booking.booking_time}</span>
+                      <span>{booking.booking_time?.slice(0, 5) || booking.booking_time}</span>
                       <span className="text-sm text-gray-500">
                         ({booking.Service?.duration} min)
                       </span>
@@ -460,24 +470,7 @@ export default function MyBookings() {
                 <div className="flex items-center justify-between pt-4 border-t border-gray-200">
                   <div className="text-sm text-gray-500">
                     {booking.Service?.price && (
-                      <span className="font-medium">₹{booking.Service.price}</span>
-                    )}
-                  </div>
-                  
-                  <div className="flex space-x-2">
-                    <button
-                      onClick={() => router.push(`/booking-status?id=${booking.id}`)}
-                      className="px-3 py-1 text-sm bg-gray-100 text-gray-700 rounded hover:bg-gray-200 transition-colors"
-                    >
-                      View Details
-                    </button>
-                    {booking.status === 'pending' && (
-                      <button
-                        onClick={handleRefresh}
-                        className="px-3 py-1 text-sm bg-blue-100 text-blue-700 rounded hover:bg-blue-200 transition-colors"
-                      >
-                        Check Status
-                      </button>
+                      <span className="font-medium text-lg text-gray-900">₹{booking.Service.price}</span>
                     )}
                   </div>
                 </div>
