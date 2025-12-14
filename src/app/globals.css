@@ -90,6 +90,14 @@ html {
   scroll-behavior: smooth;
 }
 
+/* Global placeholder color override - always use black/dark gray */
+input::placeholder,
+textarea::placeholder,
+select::placeholder {
+  color: #1f2937 !important;
+  opacity: 1 !important;
+}
+
 /* ============================================
    UTILITY CLASSES - BOOKSY STYLE
    ============================================ */
