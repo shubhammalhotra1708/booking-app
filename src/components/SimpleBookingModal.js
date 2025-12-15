@@ -57,7 +57,6 @@ export default function SimpleBookingModal({
       if (data.success && data.data?.availableSlots) {
         setAvailableSlots(data.data.availableSlots);
       } else {
-        console.error('API Error:', data.error || 'No available slots found');
         setAvailableSlots([]);
       }
     } catch (err) {
@@ -228,7 +227,11 @@ export default function SimpleBookingModal({
                 {/* Time Slots */}
                 {selectedDate && (
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-3">Available Times</label>
+                    <div className="flex items-center justify-between mb-3">
+                {/* Time Slots */}
+                {selectedDate && (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-3">Select Time</label>
                     {loading ? (
                       <div className="text-center py-8">
                         <div className="animate-spin h-8 w-8 border-2 border-blue-500 border-t-transparent rounded-full mx-auto"></div>
@@ -242,27 +245,24 @@ export default function SimpleBookingModal({
                             onClick={() => handleSlotSelect(slot)}
                             className="p-3 text-center rounded-lg border border-gray-200 hover:bg-blue-50 hover:border-blue-300 transition-all"
                           >
-                            <Clock className="h-4 w-4 mx-auto mb-1 text-blue-500" />
-                            <div className="text-sm font-medium">{slot.time}</div>
-                            <div className="text-xs text-gray-500 mt-1">
-                              {slot.availableStaff?.length || 0} staff
-                            </div>
+                            <Clock className="h-4 w-4 mx-auto mb-1 text-gray-400" />
+                            <div className="text-sm font-medium text-gray-900">{slot.time}</div>
+                            {slot.availableStaff && slot.availableStaff.length > 0 && (
+                              <div className="text-xs text-gray-500 mt-1">
+                                {slot.availableStaff.length} staff
+                              </div>
+                            )}
                           </button>
                         ))}
                       </div>
                     ) : (
-                      <div className="text-center py-8 text-gray-500">
-                        <Calendar className="h-12 w-12 mx-auto mb-2 text-gray-300" />
-                        <p>No available slots for this date</p>
-                        <p className="text-sm">Please choose another date</p>
+                      <div className="text-center py-8 bg-gray-50 rounded-lg">
+                        <Clock className="h-12 w-12 mx-auto mb-3 text-gray-300" />
+                        <p className="text-gray-500">No available time slots for this date</p>
                       </div>
                     )}
                   </div>
                 )}
-              </div>
-            </div>
-          )}
-
           {/* Step 2: Staff Selection */}
           {step === 2 && (
             <div className="space-y-6">

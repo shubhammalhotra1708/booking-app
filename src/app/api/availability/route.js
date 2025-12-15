@@ -27,14 +27,19 @@ export async function GET(request) {
     const { shop_id, service_id, staff_id, date } = validation.data;
   const supabase = await createClient(); // SSR client bound to user (respects RLS)
 
+    logger.info(`🔍 === AVAILABILITY REQUEST START ===`);
+    logger.info(`📋 Params: shop_id=${shop_id}, service_id=${service_id}, staff_id=${staff_id}, date=${date}`);
+
     // Get service details (we need duration)
     const { data: service, error: serviceError } = await supabase
       .from('Service')
-      .select('id, name, duration, shop_id')
+      .select('id, name, duration, shop_id, is_active')
       .eq('id', service_id)
       .eq('shop_id', shop_id)
       .eq('is_active', true)
       .single();
+
+    logger.info(`🛍️ Service Query Result: service=${JSON.stringify(service)}, error=${serviceError?.message}`);
 
     if (serviceError || !service) {
       return NextResponse.json(
@@ -46,25 +51,54 @@ export async function GET(request) {
     // Get shop operating hours
     const { data: shop, error: shopError } = await supabase
       .from('Shop')
-      .select('id, name, operating_hours')
+      .select('id, name, operating_hours, is_active')
       .eq('id', shop_id)
       .eq('is_active', true)
       .single();
 
+    logger.info(`🏪 Shop Query Result: shop=${JSON.stringify(shop)}, error=${shopError?.message}`);
+
     if (shopError || !shop) {
+      logger.error(`❌ Shop not found or inactive: shop_id=${shop_id}`);
       return NextResponse.json(
         createErrorResponse('Shop not found', 404),
         { status: 404 }
       );
     }
 
-    // Get day of week for operating hours
-    const dayOfWeek = new Date(date).toLocaleDateString('en-US', { weekday: 'long' }).toLowerCase();
+    // Get day of week for operating hours (using UTC to avoid timezone shift)
+    const dateObj = new Date(date + 'T00:00:00Z'); // Force UTC interpretation
+    const dayOfWeek = dateObj.toLocaleDateString('en-US', { weekday: 'long', timeZone: 'UTC' }).toLowerCase();
     const dayHours = shop.operating_hours[dayOfWeek];
+    
+    logger.debug(`📅 Date: ${date} → Day: ${dayOfWeek}, Hours: ${JSON.stringify(dayHours)}`);
 
-    if (!dayHours || !dayHours.open || !dayHours.close) {
+    // Check if shop is closed: missing hours, missing open/close times, OR explicitly marked as closed
+    if (!dayHours || !dayHours.open || !dayHours.close || dayHours.isOpen === false) {
+      logger.info(`🚫 Shop closed on ${dayOfWeek}: isOpen=${dayHours?.isOpen}, open=${dayHours?.open}, close=${dayHours?.close}`);
       return NextResponse.json(
-        createSuccessResponse([], 'Shop is closed on this day')
+        createSuccessResponse({
+          date,
+          service: {
+            id: service.id,
+            name: service.name,
+            duration: service.duration
+          },
+          shop: {
+            id: shop.id,
+            name: shop.name,
+            operatingHours: dayHours || {}
+          },
+          staff: null,
+          allSlots: [],
+          availableSlots: [],
+          blockedSlots: [],
+          summary: {
+            totalSlots: 0,
+            availableCount: 0,
+            blockedCount: 0
+          }
+        }, 'Shop is closed on this day')
       );
     }
 
@@ -88,7 +122,9 @@ export async function GET(request) {
         );
       }
 
-      // CRITICAL: Verify this staff can provide the requested service
+      // DISABLED: StaffService verification (no UI exists to manage mappings)
+      // TODO: Re-enable once we have proper admin UI for staff-service management
+      /*
       const { data: staffServiceMapping, error: mappingError } = await supabase
         .from('StaffService')
         .select('staffid, serviceid')
@@ -110,9 +146,10 @@ export async function GET(request) {
           { status: 400 }
         );
       }
+      */
 
       availableStaff = [specificStaff];
-      logger.debug('Verified staff can provide service:', specificStaff);
+      logger.debug('✅ Staff verified (StaffService check DISABLED):', specificStaff);
     } else {
       // First, check StaffService mappings for this service
       const { data: mappings, error: mappingError } = await supabase
@@ -121,11 +158,16 @@ export async function GET(request) {
         .eq('serviceid', service_id);
 
       if (mappingError) {
+        logger.error('❌ StaffService mapping error:', mappingError);
         return NextResponse.json(
           createErrorResponse('Failed to fetch staff-service mappings', 500),
           { status: 500 }
         );
       }
+
+      // TEMPORARY: Ignore StaffService table - treat all active staff as able to perform all services
+      // TODO: Add proper UI for managing StaffService mappings before re-enabling this
+      logger.info(`⚠️ StaffService table DISABLED - using ALL active staff (backward compatibility mode)`);
 
       let staffQuery = supabase
         .from('Staff')
@@ -133,24 +175,57 @@ export async function GET(request) {
         .eq('shop_id', shop_id)
         .eq('is_active', true);
 
+      // DISABLED: StaffService filtering
+      // This was breaking bookings because:
+      // 1. No UI exists to manage mappings
+      // 2. Existing staff have no mappings or are marked inactive
+      // 3. No migration was run when StaffService was added
+      /*
       if (mappings && mappings.length > 0) {
         const staffIds = mappings.map((m) => m.staffid);
+        logger.info(`✅ Using StaffService mappings - filtering to staff IDs:`, staffIds);
         staffQuery = staffQuery.in('id', staffIds);
       }
+      */
 
       const { data: allStaff, error: allStaffError } = await staffQuery;
       if (allStaffError) {
+        logger.error('❌ Staff fetch error:', allStaffError);
         return NextResponse.json(
           createErrorResponse('Failed to fetch staff', 500),
           { status: 500 }
         );
       }
       availableStaff = allStaff || [];
+      logger.info(`👥 Available staff count: ${availableStaff.length}`);
+      logger.info(`👥 Staff details: ${JSON.stringify(availableStaff.map(s => ({ id: s.id, name: s.name })))}`);
     }
 
     if (availableStaff.length === 0) {
+      logger.error(`❌ NO STAFF AVAILABLE - service_id: ${service_id}, shop_id: ${shop_id}`);
       return NextResponse.json(
-        createSuccessResponse([], 'No staff available for this service')
+        createSuccessResponse({
+          date,
+          service: {
+            id: service.id,
+            name: service.name,
+            duration: service.duration
+          },
+          shop: {
+            id: shop.id,
+            name: shop.name,
+            operatingHours: dayHours
+          },
+          staff: null,
+          allSlots: [],
+          availableSlots: [],
+          blockedSlots: [],
+          summary: {
+            totalSlots: 0,
+            availableCount: 0,
+            blockedCount: 0
+          }
+        }, 'No staff available for this service')
       );
     }
 
@@ -235,6 +310,9 @@ export async function GET(request) {
     // Separate available and blocked slots for easy frontend handling
     const availableSlots = filteredSlots.filter(slot => slot.isAvailable);
     const blockedSlots = filteredSlots.filter(slot => !slot.isAvailable);
+
+    logger.info(`📊 FINAL RESULT: availableSlots=${availableSlots.length}, blockedSlots=${blockedSlots.length}, totalSlots=${filteredSlots.length}`);
+    logger.info(`✅ === AVAILABILITY REQUEST END ===`);
 
     // Determine appropriate message
     let message = 'Schedule retrieved successfully';

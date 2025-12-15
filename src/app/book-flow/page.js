@@ -71,7 +71,6 @@ function BookingFlowInner() {
       
       const callId = `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
       console.log(`🔄 [${callId}] useEffect SHOP/SERVICE triggered - shopId: ${shopId}, serviceId: ${serviceId}`);
-      console.log(`🔄 [${callId}] Stack trace:`, new Error().stack);
       
       fetchingShopService.current = true;
       try {
@@ -126,7 +125,6 @@ function BookingFlowInner() {
     
     const callId = `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
     console.log(`📡 [${callId}] useEffect AVAILABILITY triggered - Date: ${selectedDate}, Step: ${step}, Service: ${serviceId}`);
-    console.log(`📡 [${callId}] Stack trace:`, new Error().stack);
     
     if (selectedDate && step === 1 && shopId && serviceId) {
       console.log(`🌐 [${callId}] Calling fetchAvailableSlots...`);
@@ -136,6 +134,22 @@ function BookingFlowInner() {
       console.log(`⏭️ [${callId}] Skipped - conditions not met`);
     }
   }, [selectedDate, step, shopId, serviceId]); // Trigger on any of these changes
+
+  // Re-populate staff list when returning to step 2
+  useEffect(() => {
+    if (step === 2 && selectedSlot && (!staffForSlot || staffForSlot.length === 0)) {
+      console.log('🔄 Repopulating staff list for selected slot:', selectedSlot.time);
+      // Find the slot in availableSlots to get fresh availableStaff data
+      const freshSlot = availableSlots.find(s => s.time === selectedSlot.time);
+      if (freshSlot && freshSlot.availableStaff) {
+        setStaffForSlot(freshSlot.availableStaff);
+        console.log('✅ Restored staff list:', freshSlot.availableStaff.length, 'staff members');
+      } else {
+        console.warn('⚠️ Could not find fresh slot data, using slot.availableStaff');
+        setStaffForSlot(selectedSlot.availableStaff || []);
+      }
+    }
+  }, [step, selectedSlot, availableSlots]);
 
   // If user is already logged in, prefill step 3 with known info
   useEffect(() => {
@@ -265,54 +279,33 @@ function BookingFlowInner() {
   const fetchAvailableSlots = async (date, callId = 'manual') => {
     if (!date || !shopId || !serviceId) {
       console.log(`⏭️ [${callId}] fetchAvailableSlots skipped - missing params`);
+      fetchingAvailability.current = false; // Reset flag
       return;
     }
     
-    console.log(`🌐 [${callId}] fetchAvailableSlots START - date: ${date}, shopId: ${shopId}, serviceId: ${serviceId}`);
-    console.log(`🌐 [${callId}] Stack trace:`, new Error().stack);
-    
     setLoading(true);
     try {
-      const url = `/api/availability?shop_id=${shopId}&service_id=${serviceId}&date=${date}`;
-      console.log(`🌐 [${callId}] Fetching URL:`, url);
-      
-      const response = await fetch(url);
+      console.log(`🌐 [${callId}] Fetching: /api/availability?shop_id=${shopId}&service_id=${serviceId}&date=${date}`);
+      const response = await fetch(
+        `/api/availability?shop_id=${shopId}&service_id=${serviceId}&date=${date}`
+      );
       const data = await response.json();
-      
-      console.log(`✅ [${callId}] fetchAvailableSlots COMPLETE - Found ${data.data?.availableSlots?.length || 0} slots`);
+      console.log(`📦 [${callId}] API Response:`, data);
       
       if (data.success && data.data?.availableSlots) {
+        console.log(`✅ [${callId}] Setting ${data.data.availableSlots.length} slots`);
         setAvailableSlots(data.data.availableSlots);
-
-        // 🕐 If selected date is today (IST) and there are no available slots after filtering,
-        // auto-advance to the next day once.
-        const todayIST = getTodayIST();
-        if (date === todayIST && data.data.availableSlots.length === 0 && !autoAdvancedToday) {
-          // Calculate next day in IST
-          const today = new Date(date + 'T00:00:00');
-          today.setDate(today.getDate() + 1);
-          const nextYear = today.getFullYear();
-          const nextMonth = String(today.getMonth() + 1).padStart(2, '0');
-          const nextDay = String(today.getDate()).padStart(2, '0');
-          const nextDateStr = `${nextYear}-${nextMonth}-${nextDay}`;
-          
-          console.log(`🔄 [${callId}] No slots today, auto-advancing to: ${nextDateStr}`);
-          setAutoAdvancedToday(true);
-          setSelectedDate(nextDateStr);
-          // Trigger fetch for the next day
-          await fetchAvailableSlots(nextDateStr, `${callId}-autoadvance`);
-          return;
-        }
       } else {
-        console.error(`❌ [${callId}] API Error:`, data.error || 'No available slots found');
+        console.log(`⚠️ [${callId}] No slots available - ${data.message}`);
         setAvailableSlots([]);
       }
     } catch (err) {
-      console.error('Error fetching slots:', err);
+      console.error(`❌ [${callId}] Error fetching slots:`, err);
       setAvailableSlots([]);
     } finally {
       setLoading(false);
-      fetchingAvailability.current = false; // Reset ref to allow next fetch
+      fetchingAvailability.current = false; // ✅ CRITICAL: Reset flag to allow future fetches
+      console.log(`🏁 [${callId}] fetchAvailableSlots COMPLETE`);
     }
   };
 
@@ -320,7 +313,6 @@ function BookingFlowInner() {
   const handleDateSelect = (date) => {
     const callId = `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
     console.log(`📅 [${callId}] handleDateSelect CALLED - date: ${date}`);
-    console.log(`📅 [${callId}] Stack trace:`, new Error().stack);
     
     setSelectedDate(date);
     // Reset auto-advance whenever user changes date explicitly
