@@ -54,7 +54,6 @@ export default function BookingPage() {
         }
         
       } catch (err) {
-        console.log('Using mock data due to error:', err);
         setError('Using sample data');
       } finally {
         setLoading(false);

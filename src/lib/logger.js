@@ -12,7 +12,6 @@ export const logger = {
    */
   debug: (...args) => {
     if (isDev) {
-      console.log(...args);
     }
   },
 
@@ -22,7 +21,6 @@ export const logger = {
    */
   info: (...args) => {
     if (isDev) {
-      console.info(...args);
     }
   },
 

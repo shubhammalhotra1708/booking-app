@@ -7,7 +7,6 @@ export function logEvent(event, metadata = {}) {
     ...metadata
   };
   // eslint-disable-next-line no-console
-  console.log('[EVENT]', JSON.stringify(payload));
   return payload;
 }
 

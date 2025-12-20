@@ -56,42 +56,72 @@ export async function POST(request) {
       );
     }
 
-    // Staff-service validation
+    // Staff validation with graceful StaffService fallback
     if (bookingData.staff_id) {
-      logger.debug('Validating staff-service mapping:', {
+      logger.debug('Validating staff:', {
         staff_id: bookingData.staff_id,
         service_id: bookingData.service_id
       });
       
-      const { data: staffService, error: staffServiceError } = await supabase
-        .from('StaffService')
-        .select('staffid, serviceid')
-        .eq('staffid', bookingData.staff_id)
-        .eq('serviceid', bookingData.service_id)
+      // First verify staff exists and is active
+      const { data: staff, error: staffError } = await supabase
+        .from('Staff')
+        .select('id, name, is_active, shop_id')
+        .eq('id', bookingData.staff_id)
+        .eq('shop_id', bookingData.shop_id)
+        .eq('is_active', true)
         .maybeSingle();
       
-      logger.debug('StaffService query result:', { 
-        data: staffService, 
-        error: staffServiceError 
-      });
-      
-      if (staffServiceError) {
-        logger.error('StaffService query error:', staffServiceError);
+      if (staffError || !staff) {
+        logger.error('Staff not found or inactive:', bookingData.staff_id);
         return NextResponse.json(
-          createErrorResponse('Failed to verify staff capabilities', 500, null, ERROR_CODES.INTERNAL_ERROR),
-          { status: 500 }
-        );
-      }
-      
-      if (!staffService) {
-        logger.error('No StaffService mapping found for staff', bookingData.staff_id, 'and service', bookingData.service_id);
-        return NextResponse.json(
-          createErrorResponse('Selected staff does not provide this service', 400, null, ERROR_CODES.INVALID_STAFF),
+          createErrorResponse('Selected staff not found or inactive', 400, null, ERROR_CODES.INVALID_STAFF),
           { status: 400 }
         );
       }
       
-      logger.debug('✅ Staff-service validation passed');
+      // OPTIONAL: Check StaffService mappings if they exist
+      // Count how many services this staff has mapped
+      const { count: staffServiceCount, error: countError } = await supabase
+        .from('StaffService')
+        .select('*', { count: 'exact', head: true })
+        .eq('staffid', bookingData.staff_id);
+      
+      // Handle null/undefined count (treat as 0)
+      const mappingCount = staffServiceCount ?? 0;
+      
+      if (countError) {
+        logger.warn('⚠️ Error checking StaffService mappings (will allow booking):', countError);
+      }
+      
+      if (mappingCount > 0) {
+        // Staff HAS service mappings - enforce them
+        const { data: staffService, error: staffServiceError } = await supabase
+          .from('StaffService')
+          .select('staffid, serviceid')
+          .eq('staffid', bookingData.staff_id)
+          .eq('serviceid', bookingData.service_id)
+          .maybeSingle();
+        
+        if (staffServiceError) {
+          logger.warn('⚠️ Error checking specific staff-service mapping (will allow booking):', staffServiceError);
+        } else if (!staffService) {
+          logger.warn('⚠️ Staff has service mappings but this service not included:', {
+            staff_id: bookingData.staff_id,
+            service_id: bookingData.service_id,
+            mapped_services: mappingCount
+          });
+          return NextResponse.json(
+            createErrorResponse('Selected staff does not provide this service', 400, null, ERROR_CODES.INVALID_STAFF),
+            { status: 400 }
+          );
+        } else {
+          logger.debug('✅ Staff-service validation passed (StaffService enforced)');
+        }
+      } else {
+        // No service mappings for this staff - allow booking (backwards compatible)
+        logger.debug('✅ Staff validation passed (StaffService check skipped - no mappings exist)');
+      }
     }
 
     // Identity resolution

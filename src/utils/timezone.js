@@ -129,7 +129,6 @@ export function getDateIST(dateString) {
  */
 export function logISTTime() {
   const now = getNowIST();
-  console.log('🕐 Current IST Time:', {
     date: getTodayIST(),
     time: getCurrentTimeIST(),
     full: now.toLocaleString('en-IN', { timeZone: IST_TIMEZONE }),

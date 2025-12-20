@@ -55,7 +55,6 @@ export default function SalonProfile() {
   const salonImages = useMemo(() => {
     const images = [];
     
-    console.log('🎨 Building salon images for:', salon?.name, {
       banner_url: salon?.banner_url,
       gallery_urls: salon?.gallery_urls,
       logo_url: salon?.logo_url,
@@ -65,42 +64,35 @@ export default function SalonProfile() {
     
     // Priority 1: Banner image (hero)
     if (salon?.banner_url) {
-      console.log('✅ Adding banner:', salon.banner_url);
       images.push(salon.banner_url);
     }
     
     // Priority 2: Gallery images
     if (salon?.gallery_urls && Array.isArray(salon.gallery_urls)) {
       const validGallery = salon.gallery_urls.filter(url => url);
-      console.log('✅ Adding gallery images:', validGallery.length, validGallery);
       images.push(...validGallery);
     }
     
     // Priority 3: Logo as fallback
     if (salon?.logo_url && images.length === 0) {
-      console.log('✅ Adding logo as fallback:', salon.logo_url);
       images.push(salon.logo_url);
     }
     
     // Priority 4: Old format images (if any)
     if (salon?.images && Array.isArray(salon.images) && images.length === 0) {
-      console.log('⚠️ Using old format images:', salon.images);
       images.push(...salon.images);
     }
     
     // Priority 5: Single image fallback
     if (salon?.image && images.length === 0) {
-      console.log('⚠️ Using old single image:', salon.image);
       images.push(salon.image);
     }
     
     // Final fallback: placeholder
     if (images.length === 0) {
-      console.log('❌ No images found, using placeholder');
       images.push('/s1.jpeg');
     }
     
-    console.log('🖼️ Final image array:', images);
     return images;
   }, [salon?.banner_url, salon?.gallery_urls, salon?.logo_url, salon?.images, salon?.image]);
   

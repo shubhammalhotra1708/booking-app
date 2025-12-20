@@ -36,6 +36,7 @@ export default function ClientDashboard() {
     password: '',
     confirmPassword: '',
     showPassword: false,
+    loginIdentifier: '', // For login: can be email OR phone
     authMode: 'email' // 'email' or 'phone'
   });
 
@@ -57,7 +58,6 @@ export default function ClientDashboard() {
       }
     } catch (error) {
       // User not logged in, stay on this page
-      console.log('Not logged in');
     }
   };
 
@@ -68,20 +68,53 @@ export default function ClientDashboard() {
     
     const isSignup = activeTab === 'signup';
     
-    // Validation
-    if (isSignup && !authForm.name.trim()) {
-      setError('Name is required for signup');
-      return;
-    }
-    
-    if ((!authForm.phone && !authForm.email) || !authForm.password) {
-      setError('Please provide email/phone and password');
-      return;
-    }
-    
-    if (isSignup && authForm.password !== authForm.confirmPassword) {
-      setError('Passwords do not match');
-      return;
+    // Validation for Signup
+    if (isSignup) {
+      if (!authForm.name.trim()) {
+        setError('Name is required');
+        return;
+      }
+      
+      if (!authForm.email.trim()) {
+        setError('Email is required');
+        return;
+      }
+      
+      if (!/\S+@\S+\.\S+/.test(authForm.email)) {
+        setError('Please enter a valid email address');
+        return;
+      }
+      
+      if (!authForm.phone.trim()) {
+        setError('Phone number is required');
+        return;
+      }
+      
+      if (!/^\d{10}$/.test(authForm.phone.replace(/\D/g, ''))) {
+        setError('Please enter a valid 10-digit phone number');
+        return;
+      }
+      
+      if (!authForm.password || authForm.password.length < 6) {
+        setError('Password must be at least 6 characters');
+        return;
+      }
+      
+      if (authForm.password !== authForm.confirmPassword) {
+        setError('Passwords do not match');
+        return;
+      }
+    } else {
+      // Validation for Login
+      if (!authForm.loginIdentifier.trim()) {
+        setError('Email or phone number is required');
+        return;
+      }
+      
+      if (!authForm.password) {
+        setError('Password is required');
+        return;
+      }
     }
 
     setLoading(true);
@@ -90,31 +123,27 @@ export default function ClientDashboard() {
     try {
       let result;
       
-      if (authForm.authMode === 'email') {
-        if (isSignup) {
-          result = await signUpWithEmail({
-            email: authForm.email,
-            password: authForm.password,
-            name: authForm.name,
-            phone: authForm.phone || null
-          });
-        } else {
-          result = await signInWithEmail({
-            email: authForm.email,
-            password: authForm.password
-          });
-        }
+      if (isSignup) {
+        // Signup: Always use email as primary, phone as secondary
+        result = await signUpWithEmail({
+          email: authForm.email,
+          password: authForm.password,
+          name: authForm.name,
+          phone: authForm.phone
+        });
       } else {
-        // Phone auth
-        if (isSignup) {
-          result = await signUpWithPhone({
-            phone: authForm.phone,
-            password: authForm.password,
-            name: authForm.name
+        // Login: Detect if identifier is email or phone
+        const identifier = authForm.loginIdentifier.trim();
+        const isEmail = /\S+@\S+\.\S+/.test(identifier);
+        
+        if (isEmail) {
+          result = await signInWithEmail({
+            email: identifier,
+            password: authForm.password
           });
         } else {
           result = await signInWithPhone({
-            phone: authForm.phone,
+            phone: identifier,
             password: authForm.password
           });
         }
@@ -154,9 +183,9 @@ export default function ClientDashboard() {
         <div className="bg-white rounded-lg shadow-lg p-8">
           {/* Header */}
           <div className="text-center mb-8">
-            <h1 className="text-3xl font-bold text-gray-900 mb-2">Client Dashboard</h1>
+            <h1 className="text-3xl font-bold text-gray-900 mb-2">Welcome to BookEz</h1>
             <p className="text-gray-600">
-              Check your booking status or access your account
+              Sign in to manage your bookings or create a new account
             </p>
           </div>
 
@@ -222,106 +251,74 @@ export default function ClientDashboard() {
                 </p>
               </div>
 
-              {/* Auth Mode Switcher (Email/Phone) */}
-              <div className="flex bg-gray-100 rounded-lg p-1 mb-6">
-                <button
-                  type="button"
-                  onClick={() => setAuthForm({...authForm, authMode: 'email'})}
-                  className={`flex-1 py-2 px-3 rounded-md text-sm font-medium transition-colors ${
-                    authForm.authMode === 'email'
-                      ? 'bg-white text-gray-900 shadow-sm'
-                      : 'text-gray-600 hover:text-gray-900'
-                  }`}
-                >
-                  <Mail className="h-4 w-4 inline mr-1" />
-                  Email
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setAuthForm({...authForm, authMode: 'phone'})}
-                  className={`flex-1 py-2 px-3 rounded-md text-sm font-medium transition-colors ${
-                    authForm.authMode === 'phone'
-                      ? 'bg-white text-gray-900 shadow-sm'
-                      : 'text-gray-600 hover:text-gray-900'
-                  }`}
-                >
-                  <Phone className="h-4 w-4 inline mr-1" />
-                  Phone
-                </button>
-              </div>
-
               <form onSubmit={handleQuickLogin} className="space-y-4">
-                {/* Name field (signup only) */}
+                {/* Signup Fields */}
                 {activeTab === 'signup' && (
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Full Name *
-                    </label>
-                    <div className="relative">
-                      <User className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
-                      <input
-                        type="text"
-                        value={authForm.name}
-                        onChange={(e) => setAuthForm({...authForm, name: e.target.value})}
-                        className="w-full pl-10 pr-3 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                        placeholder="Enter your full name"
-                        required
-                      />
+                  <>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Full Name *
+                      </label>
+                      <div className="relative">
+                        <User className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+                        <input
+                          type="text"
+                          value={authForm.name}
+                          onChange={(e) => setAuthForm({...authForm, name: e.target.value})}
+                          className="w-full pl-10 pr-3 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                          placeholder="Enter your full name"
+                        />
+                      </div>
                     </div>
-                  </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Email Address *
+                      </label>
+                      <div className="relative">
+                        <Mail className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+                        <input
+                          type="email"
+                          value={authForm.email}
+                          onChange={(e) => setAuthForm({...authForm, email: e.target.value})}
+                          className="w-full pl-10 pr-3 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                          placeholder="Enter your email address"
+                        />
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Phone Number *
+                      </label>
+                      <div className="relative">
+                        <Phone className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+                        <input
+                          type="tel"
+                          value={authForm.phone}
+                          onChange={(e) => setAuthForm({...authForm, phone: e.target.value})}
+                          className="w-full pl-10 pr-3 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                          placeholder="Enter your phone number"
+                        />
+                      </div>
+                    </div>
+                  </>
                 )}
 
-                {/* Email or Phone based on mode */}
-                {authForm.authMode === 'email' ? (
+                {/* Login Field - Single identifier (email or phone) */}
+                {activeTab === 'login' && (
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Email Address *
+                      Email or Phone Number *
                     </label>
                     <div className="relative">
                       <Mail className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
                       <input
-                        type="email"
-                        value={authForm.email}
-                        onChange={(e) => setAuthForm({...authForm, email: e.target.value})}
+                        type="text"
+                        value={authForm.loginIdentifier}
+                        onChange={(e) => setAuthForm({...authForm, loginIdentifier: e.target.value})}
                         className="w-full pl-10 pr-3 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                        placeholder="Enter your email address"
-                        required
-                      />
-                    </div>
-                  </div>
-                ) : (
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Phone Number *
-                    </label>
-                    <div className="relative">
-                      <Phone className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
-                      <input
-                        type="tel"
-                        value={authForm.phone}
-                        onChange={(e) => setAuthForm({...authForm, phone: e.target.value})}
-                        className="w-full pl-10 pr-3 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                        placeholder="Enter your phone number"
-                        required
-                      />
-                    </div>
-                  </div>
-                )}
-
-                {/* Optional phone for email signup */}
-                {activeTab === 'signup' && authForm.authMode === 'email' && (
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Phone Number (Optional)
-                    </label>
-                    <div className="relative">
-                      <Phone className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
-                      <input
-                        type="tel"
-                        value={authForm.phone}
-                        onChange={(e) => setAuthForm({...authForm, phone: e.target.value})}
-                        className="w-full pl-10 pr-3 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                        placeholder="Enter your phone number"
+                        placeholder="Enter your email or phone number"
                       />
                     </div>
                   </div>
@@ -372,6 +369,18 @@ export default function ClientDashboard() {
                   </div>
                 )}
 
+                {/* Forgot Password Link (login only) */}
+                {activeTab === 'login' && (
+                  <div className="text-right">
+                    <Link
+                      href="/forgot-password"
+                      className="text-sm text-blue-600 hover:text-blue-700 font-medium"
+                    >
+                      Forgot Password?
+                    </Link>
+                  </div>
+                )}
+
                 <button
                   type="submit"
                   disabled={loading}
@@ -408,27 +417,6 @@ export default function ClientDashboard() {
               </div>
             </div>
           )}
-
-          {/* Quick Actions */}
-          <div className="mt-8 pt-6 border-t border-gray-200">
-            <h3 className="text-sm font-medium text-gray-700 mb-4">Quick Actions</h3>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <Link
-                href="/search"
-                className="flex items-center justify-center p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
-              >
-                <Calendar className="h-5 w-5 text-blue-600 mr-2" />
-                <span className="text-sm font-medium text-gray-700">Book New Appointment</span>
-              </Link>
-              <Link
-                href="/my-bookings"
-                className="flex items-center justify-center p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
-              >
-                <Clock className="h-5 w-5 text-green-600 mr-2" />
-                <span className="text-sm font-medium text-gray-700">Go to My Bookings</span>
-              </Link>
-            </div>
-          </div>
         </div>
       </div>
     </div>

@@ -218,18 +218,18 @@ export default function Navbar({ showCompactSearch = false }) {
                   {showAccountMenu && (
                     <div className="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-lg border border-gray-200 py-1 z-50">
                       <Link
+                        href="/my-bookings/profile"
+                        className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                        onClick={() => setShowAccountMenu(false)}
+                      >
+                        My Profile
+                      </Link>
+                      <Link
                         href="/my-bookings"
                         className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
                         onClick={() => setShowAccountMenu(false)}
                       >
                         My Bookings
-                      </Link>
-                      <Link
-                        href="/client-dashboard"
-                        className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
-                        onClick={() => setShowAccountMenu(false)}
-                      >
-                        Dashboard
                       </Link>
                       <hr className="my-1" />
                       <button

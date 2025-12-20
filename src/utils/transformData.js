@@ -28,7 +28,6 @@ export const transformShopData = (apiShop) => {
     }
   }
   
-  console.log('🖼️ Transform Shop Data:', {
     shopId: apiShop.id,
     shopName: apiShop.name,
     logo_url: apiShop.logo_url,

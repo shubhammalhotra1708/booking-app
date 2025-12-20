@@ -98,7 +98,15 @@ export async function GET(request) {
             availableCount: 0,
             blockedCount: 0
           }
-        }, 'Shop is closed on this day')
+        }, 'Shop is closed on this day'),
+        {
+          status: 200,
+          headers: {
+            'Cache-Control': 'no-cache, no-store, must-revalidate',
+            'Pragma': 'no-cache',
+            'Expires': '0'
+          }
+        }
       );
     }
 
@@ -165,39 +173,39 @@ export async function GET(request) {
         );
       }
 
-      // TEMPORARY: Ignore StaffService table - treat all active staff as able to perform all services
-      // TODO: Add proper UI for managing StaffService mappings before re-enabling this
-      logger.info(`⚠️ StaffService table DISABLED - using ALL active staff (backward compatibility mode)`);
-
-      let staffQuery = supabase
-        .from('Staff')
-        .select('id, name, schedule')
-        .eq('shop_id', shop_id)
-        .eq('is_active', true);
-
-      // DISABLED: StaffService filtering
-      // This was breaking bookings because:
-      // 1. No UI exists to manage mappings
-      // 2. Existing staff have no mappings or are marked inactive
-      // 3. No migration was run when StaffService was added
-      /*
+      // Check if we have staff-service mappings
       if (mappings && mappings.length > 0) {
         const staffIds = mappings.map((m) => m.staffid);
-        logger.info(`✅ Using StaffService mappings - filtering to staff IDs:`, staffIds);
-        staffQuery = staffQuery.in('id', staffIds);
-      }
-      */
+        logger.info(`✅ Using StaffService mappings - filtering to ${staffIds.length} staff for service ${service_id}`);
+        
+        // Get only staff who can perform this service
+        const { data: mappedStaff, error: mappedStaffError } = await supabase
+          .from('Staff')
+          .select('id, name, schedule')
+          .in('id', staffIds)
+          .eq('shop_id', shop_id)
+          .eq('is_active', true);
 
-      const { data: allStaff, error: allStaffError } = await staffQuery;
-      if (allStaffError) {
-        logger.error('❌ Staff fetch error:', allStaffError);
-        return NextResponse.json(
-          createErrorResponse('Failed to fetch staff', 500),
-          { status: 500 }
-        );
+        if (mappedStaffError) {
+          logger.error('❌ Mapped staff fetch error:', mappedStaffError);
+          return NextResponse.json(
+            createErrorResponse('Failed to fetch staff', 500),
+            { status: 500 }
+          );
+        }
+
+        availableStaff = mappedStaff || [];
+        logger.info(`👥 Available staff (filtered by service): ${availableStaff.length}`);
+        
+      } else {
+        // No mappings found - return empty (no staff can perform this service)
+        logger.warn(`⚠️ No staff assigned to service ${service_id}`);
+        availableStaff = [];
       }
-      availableStaff = allStaff || [];
-      logger.info(`👥 Available staff count: ${availableStaff.length}`);
+
+      if (availableStaff.length === 0) {
+        logger.warn(`⚠️ No active staff available for service ${service_id}`);
+      }
       logger.info(`👥 Staff details: ${JSON.stringify(availableStaff.map(s => ({ id: s.id, name: s.name })))}`);
     }
 
@@ -225,7 +233,15 @@ export async function GET(request) {
             availableCount: 0,
             blockedCount: 0
           }
-        }, 'No staff available for this service')
+        }, 'No staff available for this service'),
+        {
+          status: 200,
+          headers: {
+            'Cache-Control': 'no-cache, no-store, must-revalidate',
+            'Pragma': 'no-cache',
+            'Expires': '0'
+          }
+        }
       );
     }
 
@@ -352,7 +368,9 @@ export async function GET(request) {
       { 
         status: 200,
         headers: {
-          'Cache-Control': 'private, max-age=300' // Cache for 5 minutes
+          'Cache-Control': 'no-cache, no-store, must-revalidate', // Always fetch fresh data
+          'Pragma': 'no-cache',
+          'Expires': '0'
         }
       }
     );

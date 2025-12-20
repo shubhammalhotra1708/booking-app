@@ -449,6 +449,8 @@ export async function ensureCustomerRecord(overrides = {}) {
 
     // Check email first (if provided)
     let existingByEmail = null;
+    const isAnonymous = user.user_metadata?.anonymous === true;
+    
     if (emailCandidate) {
       const { data: emailMatch, error: emailErr } = await supa
         .from('Customer')
@@ -458,8 +460,19 @@ export async function ensureCustomerRecord(overrides = {}) {
       if (emailErr) logger.error('❌ Email lookup failed:', emailErr);
       if (emailMatch) {
         existingByEmail = emailMatch;
-        // If belongs to different user, conflict
+        // If belongs to different user AND we're anonymous, this is a conflict - need to sign in instead
         if (emailMatch.user_id && emailMatch.user_id !== user.id) {
+          if (isAnonymous) {
+            logger.warn('⚠️ Anonymous user trying to use email from existing account - need to sign in');
+            if (typeof window !== 'undefined') window.__ensuringCustomer = false;
+            return { 
+              success: false, 
+              data: null, 
+              error: 'EXISTING_ACCOUNT_SIGNIN_REQUIRED',
+              message: 'This email is already registered. Please sign in to link your bookings.',
+              existingUserId: emailMatch.user_id
+            };
+          }
           logger.warn('⚠️ Email already claimed by another user');
           if (typeof window !== 'undefined') window.__ensuringCustomer = false;
           return { success: false, data: null, error: 'ACCOUNT_EXISTS' };
@@ -479,8 +492,19 @@ export async function ensureCustomerRecord(overrides = {}) {
       if (phoneErr) logger.error('❌ Phone lookup failed:', phoneErr);
       if (phoneMatch) {
         existingByPhone = phoneMatch;
-        // If belongs to different user, conflict
+        // If belongs to different user AND we're anonymous, this is a conflict - need to sign in instead
         if (phoneMatch.user_id && phoneMatch.user_id !== user.id) {
+          if (isAnonymous) {
+            logger.warn('⚠️ Anonymous user trying to use phone from existing account - need to sign in');
+            if (typeof window !== 'undefined') window.__ensuringCustomer = false;
+            return { 
+              success: false, 
+              data: null, 
+              error: 'EXISTING_ACCOUNT_SIGNIN_REQUIRED',
+              message: 'This phone number is already registered. Please sign in to link your bookings.',
+              existingUserId: phoneMatch.user_id
+            };
+          }
           logger.warn('⚠️ Phone already claimed by another user');
           if (typeof window !== 'undefined') window.__ensuringCustomer = false;
           return { success: false, data: null, error: 'ACCOUNT_EXISTS' };
@@ -503,46 +527,55 @@ export async function ensureCustomerRecord(overrides = {}) {
     }
 
     // 2c. If guestMatch exists and is unclaimed (user_id IS NULL), claim it
+    // For permanent accounts only - anonymous users should create new records
     if (guestMatch && !guestMatch.user_id) {
-      logger.debug('🔗 Attempting to claim unclaimed guest customer:', guestMatch.id);
-      try {
-        // Try RPC first
-        const { error: claimErr } = await supa.rpc('claim_guest_customer', {
-          p_customer_id: guestMatch.id,
-          p_phone: phoneNorm,
-          p_email: emailCandidate,
-          p_name: overrides.name || user.user_metadata?.name || guestMatch.name || 'Customer'
-        });
-        if (!claimErr) {
-          logger.debug('✅ Guest claimed via RPC');
-          const { data: claimed } = await supa
-            .from('Customer')
-            .select('*')
-            .eq('id', guestMatch.id)
-            .maybeSingle();
-          if (claimed) {
-            if (typeof window !== 'undefined') window.__ensuringCustomer = false;
-            return { success: true, data: claimed, error: null, claimedGuest: true };
-          }
-        } else {
-          logger.warn('⚠️ RPC claim failed:', claimErr.message);
-          // Fallback direct update if RPC failed but RLS allows
-          const { data: updated, error: updErr } = await supa
-            .from('Customer')
-            .update({ user_id: user.id })
-            .eq('id', guestMatch.id)
-            .select('*')
-            .maybeSingle();
-          if (!updErr && updated) {
-            logger.debug('✅ Guest claimed via direct update');
-            if (typeof window !== 'undefined') window.__ensuringCustomer = false;
-            return { success: true, data: updated, error: null, claimedGuest: true };
+      if (!isAnonymous) {
+        // Permanent account - claim the guest record
+        logger.debug('🔗 Attempting to claim unclaimed guest customer:', guestMatch.id);
+        try {
+          // Try RPC first
+          const { error: claimErr } = await supa.rpc('claim_guest_customer', {
+            p_customer_id: guestMatch.id,
+            p_phone: phoneNorm,
+            p_email: emailCandidate,
+            p_name: overrides.name || user.user_metadata?.name || guestMatch.name || 'Customer'
+          });
+          if (!claimErr) {
+            logger.debug('✅ Guest claimed via RPC');
+            const { data: claimed } = await supa
+              .from('Customer')
+              .select('*')
+              .eq('id', guestMatch.id)
+              .maybeSingle();
+            if (claimed) {
+              if (typeof window !== 'undefined') window.__ensuringCustomer = false;
+              return { success: true, data: claimed, error: null, claimedGuest: true };
+            }
           } else {
-            logger.warn('⚠️ Direct update also failed:', updErr?.message);
+            logger.warn('⚠️ RPC claim failed:', claimErr.message);
+            // Fallback direct update if RPC failed but RLS allows
+            const { data: updated, error: updErr } = await supa
+              .from('Customer')
+              .update({ user_id: user.id })
+              .eq('id', guestMatch.id)
+              .select('*')
+              .maybeSingle();
+            if (!updErr && updated) {
+              logger.debug('✅ Guest claimed via direct update');
+              if (typeof window !== 'undefined') window.__ensuringCustomer = false;
+              return { success: true, data: updated, error: null, claimedGuest: true };
+            } else {
+              logger.warn('⚠️ Direct update also failed:', updErr?.message);
+            }
           }
+        } catch (e) {
+          logger.warn('⚠️ Guest claim attempt exception:', e?.message || e);
         }
-      } catch (e) {
-        logger.warn('⚠️ Guest claim attempt exception:', e?.message || e);
+      } else {
+        // Anonymous user found existing unclaimed guest record
+        // Per Supabase docs: each anonymous session should create its own record
+        logger.debug('⚠️ Anonymous user found existing unclaimed guest, will create separate record');
+        // Continue to create new record below
       }
     }
 
@@ -561,7 +594,7 @@ export async function ensureCustomerRecord(overrides = {}) {
     
     logger.debug('📝 Creating new Customer record:', { ...payload, user_id: payload.user_id?.substring(0, 8) + '...' });
 
-    // Pre-null fields that collide with someone else
+    // Double-check for conflicts before insert (defensive - should already be caught above)
     for (const field of ['email', 'phone']) {
       if (!payload[field]) continue;
       try {
@@ -571,10 +604,17 @@ export async function ensureCustomerRecord(overrides = {}) {
           .eq(field, payload[field])
           .maybeSingle();
         if (conflict && conflict.user_id !== user.id) {
-          logger.warn(`⚠️ Conflict detected on ${field}, nulling it out`);
-          payload[field] = null; // avoid unique violation
+          logger.error(`⚠️ UNEXPECTED: Conflict detected on ${field} during insert - this should have been caught earlier!`);
+          return {
+            success: false,
+            error: 'ACCOUNT_EXISTS',
+            message: `This ${field} is already registered to another account.`,
+            code: 'ACCOUNT_EXISTS'
+          };
         }
-      } catch {}
+      } catch (err) {
+        logger.warn(`Could not check ${field} conflict:`, err);
+      }
     }
 
     // Upsert on user_id

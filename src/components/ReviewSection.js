@@ -20,7 +20,6 @@ export default function ReviewSection({ reviews, averageRating, totalReviews }) 
   ];
 
   const handleSubmitReview = () => {
-    console.log('Submitting review:', newReview);
     // Handle review submission
     setShowWriteReview(false);
     setNewReview({ rating: 0, comment: '', service: '' });

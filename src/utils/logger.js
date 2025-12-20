@@ -4,7 +4,6 @@
 export const devLog = {
   info: (...args) => {
     if (process.env.NODE_ENV === 'development') {
-      console.log('[DEV]', ...args);
     }
   },
   error: (...args) => {

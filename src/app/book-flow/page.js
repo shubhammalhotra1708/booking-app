@@ -12,7 +12,6 @@ import { getTodayIST } from '@/utils/timezone';
 
 function BookingFlowInner() {
   const componentId = `COMPONENT-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-  console.log(`🏗️ [${componentId}] BookingFlowInner RENDER START`);
   
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -22,7 +21,6 @@ function BookingFlowInner() {
   const serviceId = searchParams.get('service_id');
   const step = parseInt(searchParams.get('step') || '1');
 
-  console.log(`🏗️ [${componentId}] URL params - shopId: ${shopId}, serviceId: ${serviceId}, step: ${step}`);
 
   // State
   const [loading, setLoading] = useState(false);
@@ -37,6 +35,7 @@ function BookingFlowInner() {
   const [selectedSlot, setSelectedSlot] = useState(null);
   const [selectedStaff, setSelectedStaff] = useState(null);
   const [availableSlots, setAvailableSlots] = useState([]);
+  const [noSlotsMessage, setNoSlotsMessage] = useState(''); // Store API message for contextual display
   const [staffForSlot, setStaffForSlot] = useState([]);
   const [customerInfo, setCustomerInfo] = useState({
     name: '',
@@ -65,16 +64,13 @@ function BookingFlowInner() {
       
       // Prevent duplicate calls in Strict Mode
       if (fetchingShopService.current) {
-        console.log('⏭️ Skipping duplicate shop/service fetch (already in progress)');
         return;
       }
       
       const callId = `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-      console.log(`🔄 [${callId}] useEffect SHOP/SERVICE triggered - shopId: ${shopId}, serviceId: ${serviceId}`);
       
       fetchingShopService.current = true;
       try {
-        console.log(`🌐 [${callId}] Fetching shop and service data...`);
         
         const [shopRes, serviceRes] = await Promise.all([
           fetch(`/api/shops?shop_id=${shopId}`),
@@ -84,10 +80,8 @@ function BookingFlowInner() {
         const shopData = await shopRes.json();
         const serviceData = await serviceRes.json();
 
-        console.log(`📦 [${callId}] Raw API response - serviceData:`, JSON.stringify(serviceData, null, 2));
 
         if (shopData.success && shopData.data.length > 0) {
-          console.log(`✅ [${callId}] Shop loaded:`, shopData.data[0].name);
           setShop(shopData.data[0]);
         }
 
@@ -96,7 +90,6 @@ function BookingFlowInner() {
           const targetService = serviceData.data.find(s => s.id === parseInt(serviceId));
           
           if (targetService) {
-            console.log(`✅ [${callId}] Service loaded - ID: ${targetService.id}, Name: ${targetService.name}`);
             setService(targetService);
           } else {
             console.error(`❌ [${callId}] Service ID ${serviceId} not found in response. Using first service as fallback.`);
@@ -119,31 +112,25 @@ function BookingFlowInner() {
   useEffect(() => {
     // Prevent duplicate calls in Strict Mode
     if (fetchingAvailability.current) {
-      console.log('⏭️ Skipping duplicate availability fetch (already in progress)');
       return;
     }
     
     const callId = `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-    console.log(`📡 [${callId}] useEffect AVAILABILITY triggered - Date: ${selectedDate}, Step: ${step}, Service: ${serviceId}`);
     
     if (selectedDate && step === 1 && shopId && serviceId) {
-      console.log(`🌐 [${callId}] Calling fetchAvailableSlots...`);
       fetchingAvailability.current = true;
       fetchAvailableSlots(selectedDate, callId);
     } else {
-      console.log(`⏭️ [${callId}] Skipped - conditions not met`);
     }
   }, [selectedDate, step, shopId, serviceId]); // Trigger on any of these changes
 
   // Re-populate staff list when returning to step 2
   useEffect(() => {
     if (step === 2 && selectedSlot && (!staffForSlot || staffForSlot.length === 0)) {
-      console.log('🔄 Repopulating staff list for selected slot:', selectedSlot.time);
       // Find the slot in availableSlots to get fresh availableStaff data
       const freshSlot = availableSlots.find(s => s.time === selectedSlot.time);
       if (freshSlot && freshSlot.availableStaff) {
         setStaffForSlot(freshSlot.availableStaff);
-        console.log('✅ Restored staff list:', freshSlot.availableStaff.length, 'staff members');
       } else {
         console.warn('⚠️ Could not find fresh slot data, using slot.availableStaff');
         setStaffForSlot(selectedSlot.availableStaff || []);
@@ -275,29 +262,95 @@ function BookingFlowInner() {
     return dates;
   };
 
+  // Get contextual no-slots message and icon
+  const getNoSlotsDisplay = () => {
+    const message = noSlotsMessage.toLowerCase();
+    
+    if (message.includes('closed')) {
+      return {
+        emoji: '🚫',
+        title: 'Shop is Closed',
+        subtitle: 'This day is marked as closed. Please select another date.',
+        suggestion: 'Try selecting tomorrow or another available day.'
+      };
+    } else if (message.includes('no staff available')) {
+      return {
+        emoji: '👥',
+        title: 'No Staff Available',
+        subtitle: 'No staff members can perform this service on this date.',
+        suggestion: 'Try selecting a different date or service.'
+      };
+    } else if (message.includes('fully booked') || message.includes('all slots')) {
+      return {
+        emoji: '📅',
+        title: 'Fully Booked',
+        subtitle: 'All time slots for this date are already booked.',
+        suggestion: 'Try selecting a different date to check availability.'
+      };
+    } else if (message.includes('past') || message.includes('time has passed')) {
+      return {
+        emoji: '🕐',
+        title: 'Time Has Passed',
+        subtitle: 'Booking time for today has already passed.',
+        suggestion: 'Please select tomorrow or a future date.'
+      };
+    } else {
+      return {
+        emoji: '📆',
+        title: 'No Available Slots',
+        subtitle: 'No time slots are available for this date.',
+        suggestion: 'Please choose another date to see available times.'
+      };
+    }
+  };
+
   // Fetch available slots
   const fetchAvailableSlots = async (date, callId = 'manual') => {
     if (!date || !shopId || !serviceId) {
-      console.log(`⏭️ [${callId}] fetchAvailableSlots skipped - missing params`);
       fetchingAvailability.current = false; // Reset flag
       return;
     }
     
     setLoading(true);
     try {
-      console.log(`🌐 [${callId}] Fetching: /api/availability?shop_id=${shopId}&service_id=${serviceId}&date=${date}`);
       const response = await fetch(
         `/api/availability?shop_id=${shopId}&service_id=${serviceId}&date=${date}`
       );
       const data = await response.json();
-      console.log(`📦 [${callId}] API Response:`, data);
       
       if (data.success && data.data?.availableSlots) {
-        console.log(`✅ [${callId}] Setting ${data.data.availableSlots.length} slots`);
         setAvailableSlots(data.data.availableSlots);
+        setNoSlotsMessage(data.data.availableSlots.length === 0 ? data.message : '');
+        
+        // If no slots available for selected date, check reason and auto-advance
+        if (data.data.availableSlots.length === 0 && !autoAdvancedToday) {
+          const message = data.message || '';
+          const today = getTodayIST();
+          
+          // Only auto-advance if:
+          // 1. Selected date is today
+          // 2. Haven't already auto-advanced
+          // 3. Reason is "closed" or "no staff"
+          if (date === today && (
+            message.includes('closed') || 
+            message.includes('No staff available')
+          )) {
+            setAutoAdvancedToday(true);
+            
+            // Calculate tomorrow's date
+            const tomorrow = new Date(today);
+            tomorrow.setDate(tomorrow.getDate() + 1);
+            const tomorrowStr = tomorrow.toISOString().split('T')[0];
+            
+            // Auto-select tomorrow
+            setTimeout(() => {
+              setSelectedDate(tomorrowStr);
+            }, 100);
+          }
+        }
       } else {
-        console.log(`⚠️ [${callId}] No slots available - ${data.message}`);
         setAvailableSlots([]);
+        setNoSlotsMessage(data.message || 'No available slots');
       }
     } catch (err) {
       console.error(`❌ [${callId}] Error fetching slots:`, err);
@@ -305,14 +358,12 @@ function BookingFlowInner() {
     } finally {
       setLoading(false);
       fetchingAvailability.current = false; // ✅ CRITICAL: Reset flag to allow future fetches
-      console.log(`🏁 [${callId}] fetchAvailableSlots COMPLETE`);
     }
   };
 
   // Handle date selection
   const handleDateSelect = (date) => {
     const callId = `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-    console.log(`📅 [${callId}] handleDateSelect CALLED - date: ${date}`);
     
     setSelectedDate(date);
     // Reset auto-advance whenever user changes date explicitly
@@ -322,7 +373,6 @@ function BookingFlowInner() {
     setAvailableSlots([]);
     setStaffForSlot([]);
     
-    console.log(`📅 [${callId}] handleDateSelect COMPLETE - date set to: ${date}, useEffect will trigger`);
     // Don't call fetchAvailableSlots here - let the useEffect handle it to avoid double calls
   };
 
@@ -473,8 +523,22 @@ function BookingFlowInner() {
             
             if (updateErr) {
               console.error('⚠️ Could not update Customer profile:', updateErr.message);
-              // If update fails, it might be because of unique constraint conflict
-              // Fall through to use existing record without update
+              
+              // Check if it's a unique constraint violation (email/phone taken by another user)
+              if (updateErr.code === '23505') {
+                setBookingErrorCode('ACCOUNT_EXISTS');
+                setBookingError('The email or phone number you entered is already registered to another account. Please use your own contact details or sign in with that account.');
+                setLoading(false);
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+                return; // ❌ BLOCK booking - don't continue with old data
+              }
+              
+              // Other errors - also block to be safe
+              setBookingErrorCode('CUSTOMER_UPDATE_FAILED');
+              setBookingError('Could not update your profile. Please try again or contact support.');
+              setLoading(false);
+              window.scrollTo({ top: 0, behavior: 'smooth' });
+              return;
             } else {
               logger.debug('✅ Customer profile updated with new details');
             }
@@ -503,6 +567,25 @@ function BookingFlowInner() {
           
           if (createErr) {
             console.error('❌ Failed to create Customer for logged user:', createErr.message);
+            
+            // Handle unique constraint violation (race condition)
+            if (createErr.code === '23505') {
+              if (createErr.message.includes('email')) {
+                setBookingErrorCode('ACCOUNT_EXISTS');
+                setBookingError('This email was just taken by another user. Please use a different email or try again.');
+              } else if (createErr.message.includes('phone')) {
+                setBookingErrorCode('ACCOUNT_EXISTS');
+                setBookingError('This phone number was just taken by another user. Please use a different number or try again.');
+              } else {
+                setBookingErrorCode('ACCOUNT_EXISTS');
+                setBookingError('Your contact details conflict with another account. Please try different details.');
+              }
+              setLoading(false);
+              window.scrollTo({ top: 0, behavior: 'smooth' });
+              return;
+            }
+            
+            // Other errors
             customerRes = { success: false, error: createErr.message };
           } else {
             logger.debug('✅ Created new Customer for logged user:', newCustomer.id);
@@ -527,6 +610,10 @@ function BookingFlowInner() {
         if (customerRes?.error === 'EMAIL_REGISTERED') {
           setBookingErrorCode('EMAIL_REGISTERED');
           setBookingError(customerRes?.message || 'This email is already registered. Please sign in to continue.');
+        } else if (customerRes?.error === 'EXISTING_ACCOUNT_SIGNIN_REQUIRED') {
+          setBookingErrorCode('EXISTING_ACCOUNT_SIGNIN_REQUIRED');
+          setBookingError(customerRes?.message || 'This email/phone is already registered. Please sign in to link your bookings.');
+          // TODO: Show sign-in modal with option to transfer anonymous bookings
         } else if (customerRes?.error === 'ACCOUNT_EXISTS') {
           setBookingErrorCode('ACCOUNT_EXISTS');
           setBookingError('An account exists with these details. Please sign in to continue.');
@@ -777,10 +864,20 @@ function BookingFlowInner() {
                     ))}
                   </div>
                 ) : (
-                  <div className="text-center py-8 text-gray-500 bg-white rounded-lg border">
-                    <Calendar className="h-12 w-12 mx-auto mb-2 text-gray-300" />
-                    <p>No available slots for this date</p>
-                    <p className="text-sm">Please choose another date</p>
+                  <div className="text-center py-8 bg-white rounded-lg border border-gray-200">
+                    {(() => {
+                      const display = getNoSlotsDisplay();
+                      return (
+                        <>
+                          <div className="text-5xl mb-3">{display.emoji}</div>
+                          <p className="text-lg font-semibold text-gray-900 mb-2">{display.title}</p>
+                          <p className="text-sm text-gray-600 mb-3">{display.subtitle}</p>
+                          <p className="text-sm text-blue-600 bg-blue-50 px-4 py-2 rounded-lg inline-block">
+                            💡 {display.suggestion}
+                          </p>
+                        </>
+                      );
+                    })()}
                   </div>
                 )}
               </div>
@@ -867,37 +964,52 @@ function BookingFlowInner() {
 
             {/* Inline sign in option */}
             {!loggedIn && (
-              <div className="bg-white border rounded-lg p-4">
-                <div className="flex items-center justify-between">
-                  <div className="text-sm text-gray-700">Already have an account?</div>
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-5">
+                <div className="flex items-center justify-between mb-3">
+                  <div className="flex items-center space-x-2">
+                    <User className="h-5 w-5 text-blue-600" />
+                    <span className="text-sm font-medium text-gray-900">Already have an account?</span>
+                  </div>
                   <button
                     onClick={() => { setShowInlineLogin(!showInlineLogin); setLoginError(''); }}
-                    className="text-sm text-blue-600 hover:underline"
+                    className="text-sm font-medium text-blue-600 hover:text-blue-700 transition-colors"
                   >
                     {showInlineLogin ? 'Hide sign in' : 'Sign in to auto-fill'}
                   </button>
                 </div>
                 {showInlineLogin && (
-                  <div className="mt-3 grid grid-cols-1 sm:grid-cols-3 gap-3">
-                    <input
-                      type="email"
-                      placeholder="Email"
-                      value={loginForm.email}
-                      onChange={(e) => setLoginForm({ ...loginForm, email: e.target.value })}
-                      className="p-3 border rounded-lg focus:ring-2 focus:ring-blue-500"
-                    />
-                    <input
-                      type="password"
-                      placeholder="Password"
-                      value={loginForm.password}
-                      onChange={(e) => setLoginForm({ ...loginForm, password: e.target.value })}
-                      className="p-3 border rounded-lg focus:ring-2 focus:ring-blue-500"
-                    />
+                  <div className="space-y-3">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Email or Phone</label>
+                      <input
+                        type="text"
+                        placeholder="your.email@example.com or 9876543210"
+                        value={loginForm.email}
+                        onChange={(e) => setLoginForm({ ...loginForm, email: e.target.value })}
+                        className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Password</label>
+                      <input
+                        type="password"
+                        placeholder="Enter your password"
+                        value={loginForm.password}
+                        onChange={(e) => setLoginForm({ ...loginForm, password: e.target.value })}
+                        className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      />
+                    </div>
                     <button
                       onClick={async () => {
                         setLoginError('');
-                        const { signInWithEmail } = await import('@/lib/auth-helpers');
-                        const result = await signInWithEmail({ email: loginForm.email, password: loginForm.password });
+                        const identifier = loginForm.email.trim();
+                        const isEmail = /\S+@\S+\.\S+/.test(identifier);
+                        
+                        const { signInWithEmail, signInWithPhone } = await import('@/lib/auth-helpers');
+                        const result = isEmail 
+                          ? await signInWithEmail({ email: identifier, password: loginForm.password })
+                          : await signInWithPhone({ phone: identifier, password: loginForm.password });
+                          
                         if (!result.success) {
                           setLoginError(result.error || 'Sign in failed');
                           return;
@@ -918,12 +1030,14 @@ function BookingFlowInner() {
                           await handleBooking();
                         }
                       }}
-                      className="bg-blue-600 text-white rounded-lg px-4"
+                      className="w-full bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg px-4 py-3 transition-colors"
                     >
                       Sign In
                     </button>
                     {loginError && (
-                      <div className="sm:col-span-3 text-sm text-red-600">{loginError}</div>
+                      <div className="bg-red-50 border border-red-200 rounded-lg p-3">
+                        <p className="text-sm text-red-600">{loginError}</p>
+                      </div>
                     )}
                   </div>
                 )}

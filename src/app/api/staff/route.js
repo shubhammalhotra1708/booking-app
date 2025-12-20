@@ -22,43 +22,99 @@ export async function GET(request) {
 
     const supabase = await createClient();
 
-    // SECURITY: Only expose customer-facing staff info, hide personal details
-    let query = supabase
-      .from('Staff')
-      .select(`
-        id, name, role, specialties, experience, rating, gender, about, shop_id, profile_image_url
-      `)
-      .eq('shop_id', parseInt(shopId))
-      .eq('is_active', true)
-      .order('name');
+    let staff = [];
 
-    // Note: Removed complex join for now since StaffService table may not exist
+    // If service_id is provided, filter staff by StaffService mapping
+    if (serviceId) {
+      logger.info(`Fetching staff for shop ${shopId} who can perform service ${serviceId}`);
+      
+      // First, get staff IDs from StaffService mapping
+      const { data: staffServiceMappings, error: mappingError } = await supabase
+        .from('StaffService')
+        .select('staffid')
+        .eq('serviceid', parseInt(serviceId));
 
-    const { data: staff, error } = await query;
+      if (mappingError) {
+        logger.error('Error fetching staff-service mappings:', mappingError);
+        return NextResponse.json(
+          createErrorResponse('Failed to fetch staff-service mappings', 500),
+          { status: 500 }
+        );
+      }
 
-    if (error) {
-      logger.error('Error fetching staff:', error);
-      return NextResponse.json(
-        createErrorResponse('Failed to fetch staff', 500),
-        { status: 500 }
-      );
+      if (!staffServiceMappings || staffServiceMappings.length === 0) {
+        logger.warn(`No staff assigned to service ${serviceId}`);
+        return NextResponse.json(
+          createSuccessResponse([], 'No staff available for this service'),
+          { status: 200 }
+        );
+      }
+
+      const staffIds = staffServiceMappings.map(m => m.staffid);
+      logger.info(`Found ${staffIds.length} staff IDs for service ${serviceId}:`, staffIds);
+
+      // Now get full staff details for these IDs
+      const { data: staffData, error: staffError } = await supabase
+        .from('Staff')
+        .select(`
+          id, name, role, specialties, experience, rating, gender, about, shop_id, profile_image_url
+        `)
+        .in('id', staffIds)
+        .eq('shop_id', parseInt(shopId))
+        .eq('is_active', true)
+        .order('name');
+
+      if (staffError) {
+        logger.error('Error fetching staff details:', staffError);
+        return NextResponse.json(
+          createErrorResponse('Failed to fetch staff', 500),
+          { status: 500 }
+        );
+      }
+
+      staff = staffData || [];
+      logger.info(`Returning ${staff.length} active staff for service ${serviceId}`);
+      
+    } else {
+      // No service specified - return all active staff
+      logger.info(`Fetching all active staff for shop ${shopId}`);
+      
+      const { data: staffData, error: staffError } = await supabase
+        .from('Staff')
+        .select(`
+          id, name, role, specialties, experience, rating, gender, about, shop_id, profile_image_url
+        `)
+        .eq('shop_id', parseInt(shopId))
+        .eq('is_active', true)
+        .order('name');
+
+      if (staffError) {
+        logger.error('Error fetching staff:', staffError);
+        return NextResponse.json(
+          createErrorResponse('Failed to fetch staff', 500),
+          { status: 500 }
+        );
+      }
+
+      staff = staffData || [];
+      logger.info(`Returning ${staff.length} active staff`);
     }
 
-    // Remove duplicate staff (in case they have multiple services)
-    const uniqueStaff = staff ? staff.reduce((acc, current) => {
+    // Remove duplicate staff (in case of data inconsistencies)
+    const uniqueStaff = staff.reduce((acc, current) => {
       const exists = acc.find(item => item.id === current.id);
       if (!exists) {
         acc.push(current);
       }
       return acc;
-    }, []) : [];
+    }, []);
 
     return NextResponse.json(
       createSuccessResponse(uniqueStaff, 'Staff retrieved successfully'),
       { 
         status: 200,
         headers: {
-          'Cache-Control': 'public, max-age=300, stale-while-revalidate=60'
+          'Cache-Control': 'public, max-age=60, stale-while-revalidate=30'
         }
       }
     );

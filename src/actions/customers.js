@@ -50,7 +50,6 @@ export async function createCustomer({ userId, name, email, phone }) {
   const supabase = await createClient();
   const isDev = process.env.NODE_ENV !== 'production';
   if (isDev) {
-    console.log('Creating customer with:', { userId, name, email, phone });
   }
   
   const { data, error } = await supabase
@@ -71,7 +70,6 @@ export async function createCustomer({ userId, name, email, phone }) {
   }
   
   if (isDev) {
-    console.log('Customer created successfully:', data);
   }
   return { success: true, data };
 }
@@ -153,13 +151,11 @@ export async function linkBookingToCustomer(bookingId, customerId) {
 export async function getOrCreateCustomer(authUser) {
   if (!authUser) {
     if (process.env.NODE_ENV !== 'production') {
-      console.log('No auth user provided to getOrCreateCustomer');
     }
     return null;
   }
   
   if (process.env.NODE_ENV !== 'production') {
-    console.log('Getting or creating customer for user:', authUser.id);
   }
   
   // Try to get existing customer
@@ -167,13 +163,11 @@ export async function getOrCreateCustomer(authUser) {
   
   if (customer) {
     if (process.env.NODE_ENV !== 'production') {
-      console.log('Found existing customer:', customer);
     }
     return customer;
   }
   
   if (process.env.NODE_ENV !== 'production') {
-    console.log('No existing customer, creating new one...');
   }
   
   // Create customer from auth user data

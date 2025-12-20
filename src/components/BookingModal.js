@@ -578,9 +578,10 @@ export default function BookingModal({ isOpen, onClose, salon }) {
                             <p className="text-caption mt-2">Loading available times...</p>
                           </div>
                         ) : (availableSlots.length === 0 && blockedSlots.length === 0) ? (
-                          <div className="text-center py-8">
-                            <p className="text-body">No time slots available for this date.</p>
-                            <p className="text-caption mt-1">Please select a different date.</p>
+                          <div className="text-center py-8 bg-gray-50 rounded-lg border border-gray-200">
+                            <div className="text-4xl mb-3">🚫</div>
+                            <p className="text-lg font-semibold text-gray-900 mb-1">Shop is closed on this day</p>
+                            <p className="text-sm text-gray-600">Please select a different date</p>
                           </div>
                         ) : (
                           <>
@@ -751,12 +752,12 @@ export default function BookingModal({ isOpen, onClose, salon }) {
                             <span className="font-semibold">{selectedStaff?.name}</span>
                           </div>
                           <div className="flex justify-between items-center">
-                            <span className="text-body">Date:</span>
-                            <span className="font-semibold">{selectedDate}</span>
+                            <span className="text-body font-bold">Date:</span>
+                            <span className="font-bold text-gray-900">{selectedDate}</span>
                           </div>
                           <div className="flex justify-between items-center">
-                            <span className="text-body">Time:</span>
-                            <span className="font-semibold">{selectedTime}</span>
+                            <span className="text-body font-bold">Time:</span>
+                            <span className="font-bold text-gray-900">{selectedTime}</span>
                           </div>
                           <div className="flex justify-between items-center pt-3 mt-3" style={{ borderTop: '1px solid var(--border-light)' }}>
                             <span className="heading-sm">Total:</span>
@@ -799,8 +800,8 @@ export default function BookingModal({ isOpen, onClose, salon }) {
                             <span className="font-semibold">{selectedStaff?.name}</span>
                           </div>
                           <div className="flex justify-between">
-                            <span className="text-body">Date & Time:</span>
-                            <span className="font-semibold">{selectedDate} at {selectedTime}</span>
+                            <span className="text-body font-bold">Date & Time:</span>
+                            <span className="font-bold text-lg text-gray-900">{selectedDate} at {selectedTime}</span>
                           </div>
                         </div>
                       </div>
