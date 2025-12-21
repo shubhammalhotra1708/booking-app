@@ -128,10 +128,7 @@ export function getDateIST(dateString) {
  * Log current IST time (for debugging)
  */
 export function logISTTime() {
-  const now = getNowIST();
-    date: getTodayIST(),
-    time: getCurrentTimeIST(),
-    full: now.toLocaleString('en-IN', { timeZone: IST_TIMEZONE }),
-    minutes: getCurrentMinutesIST()
-  });
+  // Debug function - no-op in production
+  return;
 }
+
