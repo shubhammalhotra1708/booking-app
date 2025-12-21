@@ -55,13 +55,6 @@ export default function SalonProfile() {
   const salonImages = useMemo(() => {
     const images = [];
     
-      banner_url: salon?.banner_url,
-      gallery_urls: salon?.gallery_urls,
-      logo_url: salon?.logo_url,
-      old_images: salon?.images,
-      old_image: salon?.image
-    });
-    
     // Priority 1: Banner image (hero)
     if (salon?.banner_url) {
       images.push(salon.banner_url);

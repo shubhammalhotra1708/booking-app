@@ -448,9 +448,9 @@ export default function MyBookings() {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
                   <div className="space-y-3">
                     {/* Date & Time - Bold and prominent */}
-                    <div className="bg-blue-50 rounded-lg p-3 border border-blue-100">
+                    <div className="rounded-lg p-3">
                       <div className="flex items-center space-x-2 text-gray-900 mb-2">
-                        <Calendar className="h-5 w-5 text-blue-600" />
+                        <Calendar className="h-5 w-5 text-gray-600" />
                         <span className="font-bold text-base">
                           {new Date(booking.booking_date).toLocaleDateString('en-US', {
                             weekday: 'long',
@@ -461,7 +461,7 @@ export default function MyBookings() {
                         </span>
                       </div>
                       <div className="flex items-center space-x-2 text-gray-900">
-                        <Clock className="h-5 w-5 text-blue-600" />
+                        <Clock className="h-5 w-5 text-gray-600" />
                         <span className="font-bold text-base">{booking.booking_time?.slice(0, 5) || booking.booking_time}</span>
                         <span className="text-sm text-gray-600 font-normal">
                           ({booking.Service?.duration} min)

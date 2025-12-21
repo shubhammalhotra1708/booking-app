@@ -28,14 +28,6 @@ export const transformShopData = (apiShop) => {
     }
   }
   
-    shopId: apiShop.id,
-    shopName: apiShop.name,
-    logo_url: apiShop.logo_url,
-    banner_url: apiShop.banner_url,
-    gallery_urls_raw: apiShop.gallery_urls,
-    gallery_urls_parsed: galleryUrls
-  });
-  
   return {
     id: apiShop.id,
     name: apiShop.name || 'Unnamed Salon',

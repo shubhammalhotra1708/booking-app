@@ -322,32 +322,8 @@ function BookingFlowInner() {
         setAvailableSlots(data.data.availableSlots);
         setNoSlotsMessage(data.data.availableSlots.length === 0 ? data.message : '');
         
-        // If no slots available for selected date, check reason and auto-advance
-        if (data.data.availableSlots.length === 0 && !autoAdvancedToday) {
-          const message = data.message || '';
-          const today = getTodayIST();
-          
-          // Only auto-advance if:
-          // 1. Selected date is today
-          // 2. Haven't already auto-advanced
-          // 3. Reason is "closed" or "no staff"
-          if (date === today && (
-            message.includes('closed') || 
-            message.includes('No staff available')
-          )) {
-            setAutoAdvancedToday(true);
-            
-            // Calculate tomorrow's date
-            const tomorrow = new Date(today);
-            tomorrow.setDate(tomorrow.getDate() + 1);
-            const tomorrowStr = tomorrow.toISOString().split('T')[0];
-            
-            // Auto-select tomorrow
-            setTimeout(() => {
-              setSelectedDate(tomorrowStr);
-            }, 100);
-          }
-        }
+        // REMOVED: Auto-advance logic - let users see the closed message
+        // Users should see why the date is unavailable, not be auto-redirected
       } else {
         setAvailableSlots([]);
         setNoSlotsMessage(data.message || 'No available slots');
