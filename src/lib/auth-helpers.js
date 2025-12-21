@@ -604,7 +604,7 @@ export async function ensureCustomerRecord(overrides = {}) {
           .eq(field, payload[field])
           .maybeSingle();
         if (conflict && conflict.user_id !== user.id) {
-          logger.error(`⚠️ UNEXPECTED: Conflict detected on ${field} during insert - this should have been caught earlier!`);
+          logger.debug(`⚠️ Conflict detected on ${field} during insert (expected for existing accounts)`);
           return {
             success: false,
             error: 'ACCOUNT_EXISTS',

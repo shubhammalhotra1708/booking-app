@@ -580,7 +580,7 @@ function BookingFlowInner() {
       }
       
       if (!customerRes?.success || !customerRes?.data) {
-        console.error('❌ Customer record creation failed:', customerRes?.error);
+        logger.debug('Customer record creation conflict (expected for existing accounts):', customerRes?.error);
         
         // Check if it's an account conflict or email already registered
         if (customerRes?.error === 'EMAIL_REGISTERED') {
