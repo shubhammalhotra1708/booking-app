@@ -1064,7 +1064,7 @@ function BookingFlowInner() {
               {loggedIn && (
                 <div className="bg-green-50 border border-green-200 rounded-lg p-3">
                   <p className="text-sm text-green-800">
-                    ✅ Booking as <span className="font-medium">{customerInfo.email || 'registered user'}</span>.
+                    ✅ Booking as <span className="font-medium">{customerInfo.email || 'registered user'}</span>
                   </p>
                 </div>
               )}
