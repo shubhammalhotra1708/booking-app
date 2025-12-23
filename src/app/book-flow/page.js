@@ -1008,15 +1008,19 @@ function BookingFlowInner() {
                       setValidationErrors({ ...validationErrors, phone: '' });
                     }
                   }}
+                  disabled={loggedIn}
                   className={`w-full p-3 border rounded-lg focus:ring-2 focus:border-transparent placeholder:text-gray-400 ${
                     validationErrors.phone 
                       ? 'border-red-300 focus:ring-red-500' 
                       : 'border-gray-300 focus:ring-blue-500'
-                  }`}
+                  } ${loggedIn ? 'bg-gray-100 cursor-not-allowed' : ''}`}
                   placeholder="Enter your phone number"
                 />
                 {validationErrors.phone && (
                   <p className="text-red-500 text-sm mt-1">{validationErrors.phone}</p>
+                )}
+                {loggedIn && (
+                  <p className="text-xs text-gray-500 mt-1">Phone number cannot be changed during booking</p>
                 )}
               </div>
               
@@ -1031,15 +1035,19 @@ function BookingFlowInner() {
                       setValidationErrors({ ...validationErrors, email: '' });
                     }
                   }}
+                  disabled={loggedIn}
                   className={`w-full p-3 border rounded-lg focus:ring-2 focus:border-transparent placeholder:text-gray-400 ${
                     validationErrors.email 
                       ? 'border-red-300 focus:ring-red-500' 
                       : 'border-gray-300 focus:ring-blue-500'
-                  }`}
+                  } ${loggedIn ? 'bg-gray-100 cursor-not-allowed' : ''}`}
                   placeholder="Enter your email address"
                 />
                 {validationErrors.email && (
                   <p className="text-red-500 text-sm mt-1">{validationErrors.email}</p>
+                )}
+                {loggedIn && (
+                  <p className="text-xs text-gray-500 mt-1">Email cannot be changed during booking</p>
                 )}
               </div>
               
@@ -1052,11 +1060,11 @@ function BookingFlowInner() {
                 </div>
               )}
               
-              {/* Show update message for logged users */}
+              {/* Show locked credentials message for logged users */}
               {loggedIn && (
                 <div className="bg-green-50 border border-green-200 rounded-lg p-3">
                   <p className="text-sm text-green-800">
-                    ✅ Booking as <span className="font-medium">{customerInfo.email || 'registered user'}</span>. You can update your details above if needed.
+                    ✅ Booking as <span className="font-medium">{customerInfo.email || 'registered user'}</span>.
                   </p>
                 </div>
               )}
