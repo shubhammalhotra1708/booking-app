@@ -3,10 +3,10 @@
 import { Suspense, useState, useEffect } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { Search, MapPin, ArrowLeft } from 'lucide-react';
+import { Search, ArrowLeft } from 'lucide-react';
 import { useSearch } from '@/hooks/useApi';
 // Keep as fallback
-import { searchSalonsAndServices, getUserLocation } from '@/utils/searchUtils';
+import { searchSalonsAndServices } from '@/utils/searchUtils';
 import SalonCard from '@/components/SalonCard';
 import Navbar from '@/components/Navbar';
 
@@ -14,7 +14,6 @@ function SearchResultsInner() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const [query, setQuery] = useState('');
-  const [location, setLocation] = useState('');
   const [salons, setSalons] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -46,18 +45,32 @@ function SearchResultsInner() {
 
   useEffect(() => {
     const searchQuery = searchParams.get('q') || '';
-    const searchLocation = searchParams.get('location') || '';
-    
     setQuery(searchQuery);
-    setLocation(searchLocation);
   }, [searchParams]);
 
-  // Filter salons based on search query
+  // Filter salons based on search query with elastic/fuzzy matching
   const filteredSalons = query 
-    ? salons.filter(salon => 
-        salon.name.toLowerCase().includes(query.toLowerCase()) ||
-        (salon.about && salon.about.toLowerCase().includes(query.toLowerCase()))
-      )
+    ? salons.filter(salon => {
+        // Normalize search query: remove extra spaces, lowercase
+        const normalizedQuery = query.toLowerCase().trim().replace(/\s+/g, ' ');
+        const normalizedName = salon.name.toLowerCase();
+        const normalizedAbout = (salon.about || '').toLowerCase();
+        
+        // Remove spaces for flexible matching (e.g., "hair cut" matches "haircut")
+        const queryNoSpaces = normalizedQuery.replace(/\s/g, '');
+        const nameNoSpaces = normalizedName.replace(/\s/g, '');
+        const aboutNoSpaces = normalizedAbout.replace(/\s/g, '');
+        
+        // Match with original and space-removed versions
+        return normalizedName.includes(normalizedQuery) ||
+               normalizedAbout.includes(normalizedQuery) ||
+               nameNoSpaces.includes(queryNoSpaces) ||
+               aboutNoSpaces.includes(queryNoSpaces) ||
+               // Partial word matching: "cut" matches "haircut"
+               normalizedQuery.split(' ').some(word => 
+                 word.length > 2 && (normalizedName.includes(word) || normalizedAbout.includes(word))
+               );
+      })
     : salons;
 
   const results = filteredSalons;
@@ -65,15 +78,11 @@ function SearchResultsInner() {
   const apiError = error;
 
   const handleNewSearch = () => {
-    const params = new URLSearchParams();
     if (query.trim()) {
-      params.set('q', query.trim());
+      router.push(`/search?q=${encodeURIComponent(query.trim())}`);
+    } else {
+      router.push('/search');
     }
-    if (location.trim()) {
-      params.set('location', location.trim());
-    }
-    const queryString = params.toString();
-    router.push(queryString ? `/search?${queryString}` : '/search');
   };
 
   const handleKeyPress = (e) => {
@@ -102,60 +111,30 @@ function SearchResultsInner() {
           {/* Search Bar */}
           <div className="max-w-2xl mx-auto mb-6">
             <div className="bg-white rounded-xl p-4 shadow-sm border">
-              <div className="grid grid-cols-1 md:grid-cols-12 gap-4">
-                {/* Location Input */}
-                <div className="md:col-span-4">
-                  <label className="block text-xs font-semibold mb-2 text-gray-600 uppercase tracking-wide">
-                    📍 Location
-                  </label>
-                  <div className="relative">
-                    <MapPin className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
-                    <input
-                      type="text"
-                      placeholder="Near you"
-                      value={location}
-                      onChange={(e) => setLocation(e.target.value)}
-                      onKeyPress={handleKeyPress}
-                      className="w-full h-10 pl-10 pr-3 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent"
-                    />
-                  </div>
-                  {/* Popular locations */}
-                  <div className="mt-2 flex flex-wrap gap-1">
-                    {['Pune, Maharashtra', 'Ludhiana, Punjab', 'Mumbai', 'Delhi', 'Bangalore'].map((city) => (
-                      <button
-                        key={city}
-                        onClick={() => setLocation(city)}
-                        className="px-2 py-1 text-xs bg-gray-100 hover:bg-gray-200 rounded-full transition-colors"
-                      >
-                        {city}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
+              <div className="flex gap-4">
                 {/* Search Input */}
-                <div className="md:col-span-6">
+                <div className="flex-1">
                   <label className="block text-xs font-semibold mb-2 text-gray-600 uppercase tracking-wide">
-                    🔍 Search
+                    🔍 Search Salons
                   </label>
                   <div className="relative">
                     <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
                     <input
                       type="text"
-                      placeholder="Search salons or services..."
+                      placeholder="Search by salon name or services..."
                       value={query}
                       onChange={(e) => setQuery(e.target.value)}
                       onKeyPress={handleKeyPress}
-                      className="w-full h-10 pl-10 pr-3 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent"
+                      className="w-full h-10 pl-10 pr-3 text-sm border border-gray-200 rounded-lg placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent"
                     />
                   </div>
                 </div>
 
                 {/* Search Button */}
-                <div className="md:col-span-2 flex items-end">
+                <div className="flex items-end">
                   <button
                     onClick={handleNewSearch}
-                    className="w-full h-10 bg-sky-500 text-white text-sm font-semibold rounded-lg hover:bg-sky-600 transition-colors"
+                    className="h-10 px-6 bg-sky-500 text-white text-sm font-semibold rounded-lg hover:bg-sky-600 transition-colors"
                   >
                     Search
                   </button>
