@@ -105,7 +105,9 @@ export default function SalonProfile() {
           <h1 className="text-2xl font-bold text-gray-900">Salon not found</h1>
           <p className="text-gray-600 mt-2">
             {error ? 'Unable to load salon details. Please try again.' : "The salon you're looking for doesn't exist."}
-          </p>iv className="mt-4">
+          </p>
+          {error && (
+            <div className="mt-4">
               <button 
                 onClick={() => window.location.reload()} 
                 className="bg-teal-600 text-white px-4 py-2 rounded-lg hover:bg-teal-700"
