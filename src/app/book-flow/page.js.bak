@@ -59,13 +59,16 @@ function BookingFlowInner() {
       
       // Prevent duplicate calls in Strict Mode
       if (fetchingShopService.current) {
+        console.log('⏭️ Skipping duplicate shop/service fetch (already in progress)');
         return;
       }
       
       const callId = `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+      console.log(`🔄 [${callId}] useEffect SHOP/SERVICE triggered - shopId: ${shopId}, serviceId: ${serviceId}`);
       
       fetchingShopService.current = true;
       try {
+        console.log(`🌐 [${callId}] Fetching shop and service data...`);
         
         const [shopRes, serviceRes] = await Promise.all([
           fetch(`/api/shops?shop_id=${shopId}`),
@@ -75,8 +78,10 @@ function BookingFlowInner() {
         const shopData = await shopRes.json();
         const serviceData = await serviceRes.json();
 
+        console.log(`📦 [${callId}] Raw API response - serviceData:`, JSON.stringify(serviceData, null, 2));
 
         if (shopData.success && shopData.data.length > 0) {
+          console.log(`✅ [${callId}] Shop loaded:`, shopData.data[0].name);
           setShop(shopData.data[0]);
         }
 
@@ -85,6 +90,7 @@ function BookingFlowInner() {
           const targetService = serviceData.data.find(s => s.id === parseInt(serviceId));
           
           if (targetService) {
+            console.log(`✅ [${callId}] Service loaded - ID: ${targetService.id}, Name: ${targetService.name}`);
             setService(targetService);
           } else {
             console.error(`❌ [${callId}] Service ID ${serviceId} not found in response. Using first service as fallback.`);
@@ -107,25 +113,31 @@ function BookingFlowInner() {
   useEffect(() => {
     // Prevent duplicate calls in Strict Mode
     if (fetchingAvailability.current) {
+      console.log('⏭️ Skipping duplicate availability fetch (already in progress)');
       return;
     }
     
     const callId = `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+    console.log(`📡 [${callId}] useEffect AVAILABILITY triggered - Date: ${selectedDate}, Step: ${step}, Service: ${serviceId}`);
     
     if (selectedDate && step === 1 && shopId && serviceId) {
+      console.log(`🌐 [${callId}] Calling fetchAvailableSlots...`);
       fetchingAvailability.current = true;
       fetchAvailableSlots(selectedDate, callId);
     } else {
+      console.log(`⏭️ [${callId}] Skipped - conditions not met`);
     }
   }, [selectedDate, step, shopId, serviceId]); // Trigger on any of these changes
 
   // Re-populate staff list when returning to step 2
   useEffect(() => {
     if (step === 2 && selectedSlot && (!staffForSlot || staffForSlot.length === 0)) {
+      console.log('🔄 Repopulating staff list for selected slot:', selectedSlot.time);
       // Find the slot in availableSlots to get fresh availableStaff data
       const freshSlot = availableSlots.find(s => s.time === selectedSlot.time);
       if (freshSlot && freshSlot.availableStaff) {
         setStaffForSlot(freshSlot.availableStaff);
+        console.log('✅ Restored staff list:', freshSlot.availableStaff.length, 'staff members');
       } else {
         console.warn('⚠️ Could not find fresh slot data, using slot.availableStaff');
         setStaffForSlot(selectedSlot.availableStaff || []);
@@ -260,20 +272,25 @@ function BookingFlowInner() {
   // Fetch available slots
   const fetchAvailableSlots = async (date, callId = 'manual') => {
     if (!date || !shopId || !serviceId) {
+      console.log(`⏭️ [${callId}] fetchAvailableSlots skipped - missing params`);
       fetchingAvailability.current = false; // Reset flag
       return;
     }
     
     setLoading(true);
     try {
+      console.log(`🌐 [${callId}] Fetching: /api/availability?shop_id=${shopId}&service_id=${serviceId}&date=${date}`);
       const response = await fetch(
         `/api/availability?shop_id=${shopId}&service_id=${serviceId}&date=${date}`
       );
       const data = await response.json();
+      console.log(`📦 [${callId}] API Response:`, data);
       
       if (data.success && data.data?.availableSlots) {
+        console.log(`✅ [${callId}] Setting ${data.data.availableSlots.length} slots`);
         setAvailableSlots(data.data.availableSlots);
       } else {
+        console.log(`⚠️ [${callId}] No slots available - ${data.message}`);
         setAvailableSlots([]);
       }
     } catch (err) {
@@ -282,12 +299,14 @@ function BookingFlowInner() {
     } finally {
       setLoading(false);
       fetchingAvailability.current = false; // ✅ CRITICAL: Reset flag to allow future fetches
+      console.log(`🏁 [${callId}] fetchAvailableSlots COMPLETE`);
     }
   };
 
   // Handle date selection
   const handleDateSelect = (date) => {
     const callId = `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+    console.log(`📅 [${callId}] handleDateSelect CALLED - date: ${date}`);
     
     setSelectedDate(date);
     // Reset auto-advance whenever user changes date explicitly
@@ -297,6 +316,7 @@ function BookingFlowInner() {
     setAvailableSlots([]);
     setStaffForSlot([]);
     
+    console.log(`📅 [${callId}] handleDateSelect COMPLETE - date set to: ${date}, useEffect will trigger`);
     // Don't call fetchAvailableSlots here - let the useEffect handle it to avoid double calls
   };
 

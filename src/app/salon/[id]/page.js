@@ -5,11 +5,8 @@ import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import Image from 'next/image';
 import Navbar from '../../../components/Navbar';
-import ReviewSection from '../../../components/ReviewSection';
 import { useShopDetails } from '../../../hooks/useApi';
 import { transformShopData, transformServiceData, transformStaffData } from '../../../utils/transformData';
-// Keep as fallback
-import { salonDetails, reviews } from '../../../data/mockData';
 import { 
   StarIcon, 
   MapPinIcon, 
@@ -32,7 +29,7 @@ export default function SalonProfile() {
   const [isFavorited, setIsFavorited] = useState(false);
   const [selectedImageIndex, setSelectedImageIndex] = useState(0);
 
-  // Use API data or fallback to mock data
+  // Use API data
   let salon, services, staff;
   
   if (!loading && !error && apiShop) {
@@ -44,11 +41,6 @@ export default function SalonProfile() {
     };
     services = salon.services || [];
     staff = salon.staff || [];
-  } else {
-    // Fallback to mock data
-    salon = salonDetails[salonId];
-    services = salon?.services || [];
-    staff = salon?.staff || [];
   }
   
   // Build image array with real images from DB + fallbacks
@@ -88,8 +80,6 @@ export default function SalonProfile() {
     
     return images;
   }, [salon?.banner_url, salon?.gallery_urls, salon?.logo_url, salon?.images, salon?.image]);
-  
-  const salonReviews = reviews.filter(review => review.salonId === salonId);
 
   // Loading state
   if (loading) {
@@ -106,6 +96,8 @@ export default function SalonProfile() {
 
   // Error or not found state
   if (!salon || (error && !salonDetails[salonId])) {
+  // Error or not found state
+  if (!salon || error) {
     return (
       <div className="min-h-screen bg-gray-50">
         <Navbar showCompactSearch={true} />
@@ -113,9 +105,7 @@ export default function SalonProfile() {
           <h1 className="text-2xl font-bold text-gray-900">Salon not found</h1>
           <p className="text-gray-600 mt-2">
             {error ? 'Unable to load salon details. Please try again.' : "The salon you're looking for doesn't exist."}
-          </p>
-          {error && (
-            <div className="mt-4">
+          </p>iv className="mt-4">
               <button 
                 onClick={() => window.location.reload()} 
                 className="bg-teal-600 text-white px-4 py-2 rounded-lg hover:bg-teal-700"
@@ -390,13 +380,6 @@ export default function SalonProfile() {
                 ))}
               </div>
             </div>
-
-            {/* Reviews */}
-            <ReviewSection 
-              reviews={salonReviews}
-              averageRating={salon.rating}
-              totalReviews={salon.reviewCount}
-            />
           </div>
 
           {/* Sidebar */}
