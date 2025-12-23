@@ -95,8 +95,6 @@ export default function SalonProfile() {
   }
 
   // Error or not found state
-  if (!salon || (error && !salonDetails[salonId])) {
-  // Error or not found state
   if (!salon || error) {
     return (
       <div className="min-h-screen bg-gray-50">
@@ -460,5 +458,4 @@ export default function SalonProfile() {
 
     </div>
   );
-}
 }
