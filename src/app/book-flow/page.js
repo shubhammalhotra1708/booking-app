@@ -900,7 +900,7 @@ function BookingFlowInner() {
                         placeholder="your.email@example.com or 9876543210"
                         value={loginForm.email}
                         onChange={(e) => setLoginForm({ ...loginForm, email: e.target.value })}
-                        className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                        className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent placeholder:text-gray-400"
                       />
                     </div>
                     <div>
@@ -910,7 +910,7 @@ function BookingFlowInner() {
                         placeholder="Enter your password"
                         value={loginForm.password}
                         onChange={(e) => setLoginForm({ ...loginForm, password: e.target.value })}
-                        className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                        className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent placeholder:text-gray-400"
                       />
                     </div>
                     <button
@@ -985,7 +985,7 @@ function BookingFlowInner() {
                       setValidationErrors({ ...validationErrors, name: '' });
                     }
                   }}
-                  className={`w-full p-3 border rounded-lg focus:ring-2 focus:border-transparent ${
+                  className={`w-full p-3 border rounded-lg focus:ring-2 focus:border-transparent placeholder:text-gray-400 ${
                     validationErrors.name 
                       ? 'border-red-300 focus:ring-red-500' 
                       : 'border-gray-300 focus:ring-blue-500'
@@ -1008,7 +1008,7 @@ function BookingFlowInner() {
                       setValidationErrors({ ...validationErrors, phone: '' });
                     }
                   }}
-                  className={`w-full p-3 border rounded-lg focus:ring-2 focus:border-transparent ${
+                  className={`w-full p-3 border rounded-lg focus:ring-2 focus:border-transparent placeholder:text-gray-400 ${
                     validationErrors.phone 
                       ? 'border-red-300 focus:ring-red-500' 
                       : 'border-gray-300 focus:ring-blue-500'
@@ -1031,7 +1031,7 @@ function BookingFlowInner() {
                       setValidationErrors({ ...validationErrors, email: '' });
                     }
                   }}
-                  className={`w-full p-3 border rounded-lg focus:ring-2 focus:border-transparent ${
+                  className={`w-full p-3 border rounded-lg focus:ring-2 focus:border-transparent placeholder:text-gray-400 ${
                     validationErrors.email 
                       ? 'border-red-300 focus:ring-red-500' 
                       : 'border-gray-300 focus:ring-blue-500'
