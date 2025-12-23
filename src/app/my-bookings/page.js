@@ -215,22 +215,6 @@ export default function MyBookings() {
     }
   };
 
-  const getStatusBadgeColor = (status) => {
-    switch (status) {
-      case 'pending':
-        return 'bg-yellow-100 text-yellow-800 border-yellow-300';
-      case 'confirmed':
-        return 'bg-green-100 text-green-800 border-green-300';
-      case 'completed':
-        return 'bg-blue-100 text-blue-800 border-blue-300';
-      case 'cancelled':
-      case 'rejected':
-        return 'bg-red-100 text-red-800 border-red-300';
-      default:
-        return 'bg-gray-100 text-gray-800 border-gray-300';
-    }
-  };
-
   const filterBookings = (bookings, filter) => {
     const now = new Date();
     const today = now.toISOString().split('T')[0];
@@ -424,62 +408,51 @@ export default function MyBookings() {
               >
                 {/* Booking Header */}
                 <div className="flex items-start justify-between mb-4">
-                  <div>
-                    <h3 className="font-bold text-xl text-gray-900 mb-1">
-                      {booking.Service?.name}
-                    </h3>
-                    {/* Salon name - clickable */}
-                    {booking.Shop && (
-                      <Link 
-                        href={`/salon/${booking.Shop.id}`}
-                        className="flex items-center space-x-2 text-blue-600 hover:text-blue-700 hover:underline group"
-                      >
-                        <MapPin className="h-4 w-4 group-hover:scale-110 transition-transform" />
-                        <span className="font-medium">{booking.Shop.name}</span>
-                      </Link>
-                    )}
+                  <div className="flex items-center space-x-3">
+                    {getStatusIcon(booking.status)}
+                    <div>
+                      <h3 className="font-semibold text-lg text-gray-900">
+                        {booking.Service?.name}
+                      </h3>
+                    </div>
                   </div>
-                  <span className={`px-3 py-1 text-xs font-medium rounded-full border capitalize ${getStatusBadgeColor(booking.status)}`}>
+                  <span className="px-3 py-1 text-xs font-medium bg-white rounded-full border capitalize">
                     {booking.status}
                   </span>
                 </div>
 
-                {/* Booking Details - Reordered for clarity */}
+                {/* Booking Details */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
                   <div className="space-y-3">
-                    {/* Date & Time - Bold and prominent */}
-                    <div className="rounded-lg p-3">
-                      <div className="flex items-center space-x-2 text-gray-900 mb-2">
-                        <Calendar className="h-5 w-5 text-gray-600" />
-                        <span className="font-bold text-base">
-                          {new Date(booking.booking_date).toLocaleDateString('en-US', {
-                            weekday: 'long',
-                            year: 'numeric',
-                            month: 'long',
-                            day: 'numeric'
-                          })}
-                        </span>
-                      </div>
-                      <div className="flex items-center space-x-2 text-gray-900">
-                        <Clock className="h-5 w-5 text-gray-600" />
-                        <span className="font-bold text-base">{booking.booking_time?.slice(0, 5) || booking.booking_time}</span>
-                        <span className="text-sm text-gray-600 font-normal">
-                          ({booking.Service?.duration} min)
-                        </span>
-                      </div>
+                    <div className="flex items-center space-x-2 text-gray-700">
+                      <Calendar className="h-4 w-4" />
+                      <span className="font-medium">
+                        {new Date(booking.booking_date).toLocaleDateString('en-US', {
+                          weekday: 'long',
+                          year: 'numeric',
+                          month: 'long',
+                          day: 'numeric'
+                        })}
+                      </span>
+                    </div>
+                    <div className="flex items-center space-x-2 text-gray-700">
+                      <Clock className="h-4 w-4" />
+                      <span>{booking.booking_time?.slice(0, 5) || booking.booking_time}</span>
+                      <span className="text-sm text-gray-500">
+                        ({booking.Service?.duration} min)
+                      </span>
                     </div>
                   </div>
 
                   <div className="space-y-3">
+                    <div className="flex items-center space-x-2 text-gray-700">
+                      <MapPin className="h-4 w-4" />
+                      <span className="font-medium">{booking.Shop?.name}</span>
+                    </div>
                     {booking.Staff && (
                       <div className="flex items-center space-x-2 text-gray-700">
-                        <User className="h-4 w-4 text-gray-500" />
-                        <span>with <span className="font-medium">{booking.Staff.name}</span></span>
-                      </div>
-                    )}
-                    {booking.Service?.price && (
-                      <div className="flex items-center space-x-2">
-                        <span className="text-2xl font-bold text-gray-900">₹{booking.Service.price}</span>
+                        <User className="h-4 w-4" />
+                        <span>with {booking.Staff.name}</span>
                       </div>
                     )}
                   </div>
@@ -487,12 +460,21 @@ export default function MyBookings() {
 
                 {/* Notes */}
                 {booking.notes && (
-                  <div className="bg-gray-50 rounded-md p-3 border border-gray-200">
+                  <div className="bg-white bg-opacity-50 rounded-md p-3 mb-4">
                     <p className="text-sm text-gray-700">
                       <span className="font-medium">Note:</span> {booking.notes}
                     </p>
                   </div>
                 )}
+
+                {/* Actions */}
+                <div className="flex items-center justify-between pt-4 border-t border-gray-200">
+                  <div className="text-sm text-gray-500">
+                    {booking.Service?.price && (
+                      <span className="font-medium text-lg text-gray-900">₹{booking.Service.price}</span>
+                    )}
+                  </div>
+                </div>
               </div>
             ))}
           </div>
