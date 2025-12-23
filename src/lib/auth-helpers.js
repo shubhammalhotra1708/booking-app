@@ -49,13 +49,18 @@ export async function signUpWithEmail({ email, password, name, phone, tempAccoun
   // If email confirmation is disabled, session exists immediately - create Customer now (client-side)
   if (data.session && data.user) {
     logger.debug('✅ Session created immediately - creating Customer record (client)...');
-    const customerResult = await ensureCustomerRecord({ name, email, phone });
+        const customerResult = await ensureCustomerRecord({ name, email, phone });
     if (!customerResult?.success) {
       logger.error('❌ Failed to create Customer record after signup', customerResult?.error);
+      
+      // If phone/email conflict, sign out and fail
+      if (customerResult?.error === 'ACCOUNT_EXISTS') {
+        await supabase.auth.signOut();
+        return { success: false, error: 'Phone/email already registered' };
+      }
     } else {
       logger.debug('✅ Customer record created:', customerResult.data);
     }
-
     // Stamp role=customer on the server (service-key admin API)
     try {
       await fetch('/api/auth/stamp-role', { method: 'POST' });
