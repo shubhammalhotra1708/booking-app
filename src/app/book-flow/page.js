@@ -15,8 +15,9 @@ function BookingFlowInner() {
   const searchParams = useSearchParams();
   
   // Get URL parameters
-  const shopId = searchParams.get('shop_id');
+  const shopId = searchParams.get('shop_id') || searchParams.get('shopId');
   const serviceId = searchParams.get('service_id');
+  const preselectedStaffId = searchParams.get('staffId'); // For "Book with me" feature
   const step = parseInt(searchParams.get('step') || '1');
 
   // State
@@ -132,6 +133,16 @@ function BookingFlowInner() {
       }
     }
   }, [step, selectedSlot, availableSlots]);
+
+  // Auto-select staff if staffId is in URL (Book with me feature)
+  useEffect(() => {
+    if (step === 2 && preselectedStaffId && staffForSlot.length > 0 && !selectedStaff) {
+      const staffToSelect = staffForSlot.find(s => s.id === parseInt(preselectedStaffId));
+      if (staffToSelect) {
+        setSelectedStaff(staffToSelect);
+      }
+    }
+  }, [step, preselectedStaffId, staffForSlot, selectedStaff]);
 
   // If user is already logged in, prefill step 3 with known info
   useEffect(() => {
