@@ -48,28 +48,66 @@ function SearchResultsInner() {
     setQuery(searchQuery);
   }, [searchParams]);
 
-  // Filter salons based on search query with elastic/fuzzy matching
+  // Enhanced fuzzy matching with typo tolerance
+  const fuzzyMatch = (text, searchTerm) => {
+    // Calculate Levenshtein distance for typo tolerance
+    const levenshtein = (a, b) => {
+      const matrix = Array(b.length + 1).fill(null).map(() => Array(a.length + 1).fill(null));
+      for (let i = 0; i <= a.length; i++) matrix[0][i] = i;
+      for (let j = 0; j <= b.length; j++) matrix[j][0] = j;
+      for (let j = 1; j <= b.length; j++) {
+        for (let i = 1; i <= a.length; i++) {
+          const cost = a[i - 1] === b[j - 1] ? 0 : 1;
+          matrix[j][i] = Math.min(
+            matrix[j][i - 1] + 1,
+            matrix[j - 1][i] + 1,
+            matrix[j - 1][i - 1] + cost
+          );
+        }
+      }
+      return matrix[b.length][a.length];
+    };
+
+    const normalizedText = text.toLowerCase().replace(/\s+/g, '');
+    const normalizedSearch = searchTerm.toLowerCase().replace(/\s+/g, '');
+    
+    // Direct match
+    if (normalizedText.includes(normalizedSearch)) return true;
+    
+    // Word-by-word matching
+    const textWords = text.toLowerCase().split(/\s+/);
+    const searchWords = searchTerm.toLowerCase().split(/\s+/);
+    
+    // Check if all search words match (allowing typos)
+    const allWordsMatch = searchWords.every(searchWord => {
+      return textWords.some(textWord => {
+        if (textWord.includes(searchWord) || searchWord.includes(textWord)) return true;
+        // Allow 1-2 character differences for typos (depending on word length)
+        const maxDistance = searchWord.length <= 4 ? 1 : 2;
+        return levenshtein(textWord, searchWord) <= maxDistance;
+      });
+    });
+    
+    if (allWordsMatch) return true;
+    
+    // Substring matching: "cut" matches "haircut"
+    if (searchWords.some(word => word.length > 2 && textWords.some(tw => tw.includes(word)))) {
+      return true;
+    }
+    
+    return false;
+  };
+
+  // Filter salons with enhanced fuzzy matching
   const filteredSalons = query 
     ? salons.filter(salon => {
-        // Normalize search query: remove extra spaces, lowercase
-        const normalizedQuery = query.toLowerCase().trim().replace(/\s+/g, ' ');
-        const normalizedName = salon.name.toLowerCase();
-        const normalizedAbout = (salon.about || '').toLowerCase();
+        const searchableText = [
+          salon.name || '',
+          salon.about || '',
+          ...(salon.services || []),
+        ].join(' ');
         
-        // Remove spaces for flexible matching (e.g., "hair cut" matches "haircut")
-        const queryNoSpaces = normalizedQuery.replace(/\s/g, '');
-        const nameNoSpaces = normalizedName.replace(/\s/g, '');
-        const aboutNoSpaces = normalizedAbout.replace(/\s/g, '');
-        
-        // Match with original and space-removed versions
-        return normalizedName.includes(normalizedQuery) ||
-               normalizedAbout.includes(normalizedQuery) ||
-               nameNoSpaces.includes(queryNoSpaces) ||
-               aboutNoSpaces.includes(queryNoSpaces) ||
-               // Partial word matching: "cut" matches "haircut"
-               normalizedQuery.split(' ').some(word => 
-                 word.length > 2 && (normalizedName.includes(word) || normalizedAbout.includes(word))
-               );
+        return fuzzyMatch(searchableText, query);
       })
     : salons;
 

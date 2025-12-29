@@ -133,26 +133,6 @@ export default function Navbar({ showCompactSearch = false }) {
             >
               My Bookings
             </Link>
-            <Link 
-              href="/business" 
-              className={`text-sm font-medium transition-colors ${
-                showScrollSearch || showCompactSearch 
-                  ? 'text-gray-700 hover:text-gray-900' 
-                  : 'text-gray-800 hover:text-gray-900'
-              }`}
-            >
-              For Business
-            </Link>
-            <Link 
-              href="/help" 
-              className={`text-sm font-medium transition-colors ${
-                showScrollSearch || showCompactSearch 
-                  ? 'text-gray-700 hover:text-gray-900' 
-                  : 'text-gray-800 hover:text-gray-900'
-              }`}
-            >
-              Help
-            </Link>
             
             {/* User Account Element */}
             <div className="relative">
@@ -299,24 +279,44 @@ export default function Navbar({ showCompactSearch = false }) {
       {isMenuOpen && (
         <div className="md:hidden animate-slide-up" style={{ background: 'var(--background)', borderTop: '1px solid var(--border-light)' }}>
           <div className="px-6 pt-4 pb-6 space-y-2">
-            <Link
-              href="/business"
-              className="block px-4 py-3 text-body hover:text-gray-900 transition-colors rounded-lg hover:bg-gray-50"
-            >
-              For Business
-            </Link>
-            <Link
-              href="/help"
-              className="block px-4 py-3 text-body hover:text-gray-900 transition-colors rounded-lg hover:bg-gray-50"
-            >
-              Help
-            </Link>
-            <Link
-              href="/login"
-              className="block px-4 py-3 text-sm font-medium text-gray-700 hover:text-gray-900 transition-colors rounded-lg hover:bg-gray-50 text-center"
-            >
-              👤 Account
-            </Link>
+            {user ? (
+              <>
+                <Link
+                  href="/my-bookings/profile"
+                  className="block px-4 py-3 text-body hover:text-gray-900 transition-colors rounded-lg hover:bg-gray-50"
+                  onClick={() => setIsMenuOpen(false)}
+                >
+                  My Profile
+                </Link>
+                <Link
+                  href="/my-bookings"
+                  className="block px-4 py-3 text-body hover:text-gray-900 transition-colors rounded-lg hover:bg-gray-50"
+                  onClick={() => setIsMenuOpen(false)}
+                >
+                  My Bookings
+                </Link>
+                <button
+                  onClick={async () => {
+                    await signOut();
+                    setUser(null);
+                    setCustomer(null);
+                    setIsMenuOpen(false);
+                    router.push('/');
+                  }}
+                  className="block w-full text-left px-4 py-3 text-body hover:text-gray-900 transition-colors rounded-lg hover:bg-gray-50"
+                >
+                  Sign Out
+                </button>
+              </>
+            ) : (
+              <Link
+                href="/client-dashboard"
+                className="block px-4 py-3 text-sm font-medium text-gray-700 hover:text-gray-900 transition-colors rounded-lg hover:bg-gray-50 text-center"
+                onClick={() => setIsMenuOpen(false)}
+              >
+                👤 Sign In
+              </Link>
+            )}
           </div>
         </div>
       )}
