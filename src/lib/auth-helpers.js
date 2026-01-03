@@ -319,6 +319,123 @@ export async function signInWithPhone({ phone, password }) {
 }
 
 /**
+ * Send OTP for passwordless authentication
+ * Supports both email and phone verification
+ * For anonymous users: links OTP identity to existing session
+ * For new users: creates account without password
+ */
+export async function sendOTP({ email, phone, name }) {
+  try {
+    const supa = createClient();
+    const { data: { user: currentUser } } = await supa.auth.getUser();
+    const isAnonymous = currentUser && currentUser.user_metadata?.anonymous === true;
+
+    // Determine which method to use
+    const method = email ? 'email' : phone ? 'sms' : null;
+    if (!method) {
+      return { success: false, error: 'Email or phone is required' };
+    }
+
+    const identifier = email || phone;
+    
+    // For anonymous users, use linkIdentity to upgrade session
+    // For new/existing users, use signInWithOtp
+    const options = {
+      shouldCreateUser: !isAnonymous, // Only create new user if not anonymous
+      data: {
+        name: name || 'Customer',
+        phone: phone || undefined,
+        verified_via: 'otp',
+        temp_account: false,
+        anonymous: false
+      }
+    };
+
+    if (isAnonymous) {
+      // Anonymous user - link OTP identity to existing session
+      logger.debug('🔗 Linking OTP identity to anonymous session');
+      options.shouldCreateUser = false;
+    }
+
+    const otpParams = email 
+      ? { email, options }
+      : { phone, options };
+
+    const { data, error } = await supa.auth.signInWithOtp(otpParams);
+
+    if (error) {
+      logger.error('❌ sendOTP error:', error);
+      if (error.message?.includes('already registered') || error.status === 422) {
+        return { 
+          success: false, 
+          error: 'This email/phone is already registered. Please sign in instead.',
+          code: 'already_registered'
+        };
+      }
+      return { success: false, error: error.message };
+    }
+
+    logger.debug('✅ OTP sent successfully');
+    return { success: true, data };
+  } catch (e) {
+    logger.error('sendOTP exception:', e);
+    return { success: false, error: e.message };
+  }
+}
+
+/**
+ * Verify OTP code
+ * Automatically links to anonymous session if applicable
+ */
+export async function verifyOTP({ email, phone, token }) {
+  try {
+    const supa = createClient();
+    
+    const verifyParams = email
+      ? { email, token, type: 'email' }
+      : { phone, token, type: 'sms' };
+
+    const { data, error } = await supa.auth.verifyOtp(verifyParams);
+
+    if (error) {
+      logger.error('❌ verifyOTP error:', error);
+      return { 
+        success: false, 
+        error: error.message === 'Token has expired or is invalid'
+          ? 'Invalid or expired code. Please request a new one.'
+          : 'Verification failed. Please try again.'
+      };
+    }
+
+    // After successful verification, ensure Customer record exists
+    if (data.user) {
+      logger.debug('✅ OTP verified, ensuring Customer record');
+      const customerResult = await ensureCustomerRecord({
+        email: data.user.email,
+        phone: data.user.phone,
+        name: data.user.user_metadata?.name || 'Customer'
+      });
+      
+      if (!customerResult.success) {
+        logger.error('❌ Failed to create/update Customer after OTP verification:', customerResult.error);
+      }
+
+      // Stamp role=customer
+      try {
+        await fetch('/api/auth/stamp-role', { method: 'POST' });
+      } catch (e) {
+        logger.warn('Could not stamp customer role (non-fatal):', e?.message || e);
+      }
+    }
+
+    return { success: true, data, user: data.user };
+  } catch (e) {
+    logger.error('verifyOTP exception:', e);
+    return { success: false, error: e.message };
+  }
+}
+
+/**
  * Sign out current user
  */
 export async function signOut() {

@@ -98,11 +98,11 @@ export default function HeroSection() {
                   <button
                     onClick={handleSearch}
                     disabled={isSearching || !searchQuery.trim()}
-                    className="w-full h-10 bg-sky-500 text-white text-sm font-semibold rounded-lg hover:bg-sky-600 transition-all duration-300 shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 disabled:opacity-75 disabled:cursor-not-allowed disabled:transform-none"
+                    className="px-6 h-10 bg-sky-500 text-white text-sm font-semibold rounded-lg hover:bg-sky-600 transition-all duration-300 shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 disabled:opacity-75 disabled:cursor-not-allowed disabled:transform-none whitespace-nowrap"
                   >
                     {isSearching ? (
-                      <div className="flex items-center justify-center">
-                        <div className="animate-spin rounded-full h-3 w-3 border-2 border-white border-t-transparent mr-2"></div>
+                      <div className="flex items-center justify-center gap-2">
+                        <div className="animate-spin rounded-full h-3 w-3 border-2 border-white border-t-transparent"></div>
                         Searching...
                       </div>
                     ) : (

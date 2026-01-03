@@ -3,10 +3,14 @@
 import { useState } from 'react';
 import { X, Phone, Mail, User, Lock, Eye, EyeOff } from 'lucide-react';
 import { useAuth } from './AuthProvider';
+import OTPModal from './OTPModal';
+import { sendOTP, verifyOTP } from '@/lib/auth-helpers';
 
-export default function AuthModal({ isOpen, onClose, onSuccess, bookingData }) {
+export default function AuthModal({ isOpen, onClose, onSuccess, bookingData, initialMode = 'login' }) {
   const [authMode, setAuthMode] = useState('phone'); // 'phone' or 'email'
-  const [isLogin, setIsLogin] = useState(true);
+  const [isLogin, setIsLogin] = useState(initialMode === 'login');
+  const [usePasswordless, setUsePasswordless] = useState(false); // Toggle for OTP vs password
+  const [showOTPModal, setShowOTPModal] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -27,6 +31,23 @@ export default function AuthModal({ isOpen, onClose, onSuccess, bookingData }) {
 
     try {
       let result;
+      
+      // Passwordless OTP signin (login only)
+      if (isLogin && usePasswordless) {
+        const otpResult = await sendOTP({
+          email: authMode === 'email' ? formData.email : null,
+          phone: authMode === 'phone' ? formData.phone : null,
+          name: formData.name || 'User'
+        });
+        
+        if (!otpResult.success) {
+          throw new Error(otpResult.error || 'Failed to send OTP');
+        }
+        
+        setShowOTPModal(true);
+        setLoading(false);
+        return; // Wait for OTP verification
+      }
       
       if (authMode === 'phone') {
         if (isLogin) {
@@ -69,6 +90,47 @@ export default function AuthModal({ isOpen, onClose, onSuccess, bookingData }) {
       setError(error.message || 'Authentication failed');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleOTPVerify = async (token, isResend = false) => {
+    if (isResend) {
+      try {
+        const result = await sendOTP({
+          email: authMode === 'email' ? formData.email : null,
+          phone: authMode === 'phone' ? formData.phone : null,
+          name: formData.name || 'User'
+        });
+        
+        if (!result.success) {
+          return { success: false, error: result.error };
+        }
+        
+        return { success: true };
+      } catch (error) {
+        return { success: false, error: 'Failed to resend code' };
+      }
+    }
+
+    // Verify OTP
+    try {
+      const result = await verifyOTP({
+        email: authMode === 'email' ? formData.email : null,
+        phone: authMode === 'phone' ? formData.phone : null,
+        token
+      });
+
+      if (result.success) {
+        setShowOTPModal(false);
+        // Success - user is now signed in
+        onSuccess(result.user);
+        onClose();
+        return { success: true };
+      }
+
+      return { success: false, error: result.error };
+    } catch (error) {
+      return { success: false, error: 'Verification failed' };
     }
   };
 
@@ -186,48 +248,64 @@ export default function AuthModal({ isOpen, onClose, onSuccess, bookingData }) {
               </div>
             )}
 
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Password
-              </label>
-              <div className="relative">
-                <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
-                <input
-                  type={showPassword ? 'text' : 'password'}
-                  value={formData.password}
-                  onChange={(e) => handleInputChange('password', e.target.value)}
-                  className="w-full pl-10 pr-10 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900 placeholder:text-gray-400"
-                  placeholder="Enter your password"
-                  required
-                  minLength={6}
-                />
+            {isLogin && (
+              <div className="mb-4">
                 <button
                   type="button"
-                  onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                  onClick={() => setUsePasswordless(!usePasswordless)}
+                  className="text-sm text-blue-600 hover:text-blue-800 font-medium"
                 >
-                  {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                  {usePasswordless ? '← Use password instead' : '✨ Sign in with OTP (no password needed)'}
                 </button>
               </div>
-            </div>
+            )}
 
-            {!isLogin && (
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Confirm Password
-                </label>
-                <div className="relative">
-                  <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
-                  <input
-                    type={showPassword ? 'text' : 'password'}
-                    value={formData.confirmPassword}
-                    onChange={(e) => handleInputChange('confirmPassword', e.target.value)}
-                    className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900 placeholder:text-gray-400"
-                    placeholder="Confirm your password"
-                    required={!isLogin}
-                  />
+            {!usePasswordless && (
+              <>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Password
+                  </label>
+                  <div className="relative">
+                    <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+                    <input
+                      type={showPassword ? 'text' : 'password'}
+                      value={formData.password}
+                      onChange={(e) => handleInputChange('password', e.target.value)}
+                      className="w-full pl-10 pr-10 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900 placeholder:text-gray-400"
+                      placeholder="Enter your password"
+                      required
+                      minLength={6}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword(!showPassword)}
+                      className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                    >
+                      {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                    </button>
+                  </div>
                 </div>
-              </div>
+
+                {!isLogin && (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Confirm Password
+                    </label>
+                    <div className="relative">
+                      <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+                      <input
+                        type={showPassword ? 'text' : 'password'}
+                        value={formData.confirmPassword}
+                        onChange={(e) => handleInputChange('confirmPassword', e.target.value)}
+                        className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900 placeholder:text-gray-400"
+                        placeholder="Confirm your password"
+                        required={!isLogin}
+                      />
+                    </div>
+                  </div>
+                )}
+              </>
             )}
 
             {error && (
@@ -241,7 +319,9 @@ export default function AuthModal({ isOpen, onClose, onSuccess, bookingData }) {
               disabled={loading}
               className="w-full bg-blue-600 text-white py-2 px-4 rounded-lg hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors font-medium"
             >
-              {loading ? 'Please wait...' : (isLogin ? 'Sign In' : 'Create Account')}
+              {loading ? 'Please wait...' : (
+                isLogin && usePasswordless ? 'Send OTP Code' : (isLogin ? 'Sign In' : 'Create Account')
+              )}
             </button>
           </form>
 
@@ -250,6 +330,7 @@ export default function AuthModal({ isOpen, onClose, onSuccess, bookingData }) {
               type="button"
               onClick={() => {
                 setIsLogin(!isLogin);
+                setUsePasswordless(false);
                 setError('');
                 setFormData({
                   phone: '',
@@ -269,6 +350,15 @@ export default function AuthModal({ isOpen, onClose, onSuccess, bookingData }) {
           </div>
         </div>
       </div>
+
+      {/* OTP Verification Modal */}
+      <OTPModal
+        isOpen={showOTPModal}
+        onClose={() => setShowOTPModal(false)}
+        onVerify={handleOTPVerify}
+        contactInfo={authMode === 'email' ? formData.email : formData.phone}
+        verificationType={authMode}
+      />
     </div>
   );
 }

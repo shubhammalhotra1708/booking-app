@@ -48,8 +48,8 @@ export default function MyBookings() {
       const { user: authUser } = await getCurrentUser();
       
       if (!authUser) {
-        // No session at all - redirect to homepage
-        router.push('/');
+        // No session at all - redirect to login page
+        router.push('/client-dashboard');
         return;
       }
       

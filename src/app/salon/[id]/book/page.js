@@ -44,13 +44,20 @@ export default function BookingPage() {
           setSalon(prev => ({ ...prev, ...realSalon }));
         }
         
-        // Then fetch services
-        const servicesResponse = await fetch(`/api/services?shop_id=${salonId}`);
+        // Then fetch services with staff count
+        const servicesResponse = await fetch(`/api/services?shop_id=${salonId}&include_staff_count=true`);
         const servicesResult = await servicesResponse.json();
         
         if (servicesResult.success && servicesResult.data) {
-          const realServices = servicesResult.data.map(transformServiceData);
+          // Filter to only show services that have staff assigned
+          const servicesWithStaff = servicesResult.data.filter(s => (s.staff_count || 0) > 0);
+          const realServices = servicesWithStaff.map(transformServiceData);
           setServices(realServices);
+          
+          // Log filtered services for debugging
+          if (servicesResult.data.length !== servicesWithStaff.length) {
+            console.log(`Filtered out ${servicesResult.data.length - servicesWithStaff.length} services without staff`);
+          }
         }
         
       } catch (err) {
