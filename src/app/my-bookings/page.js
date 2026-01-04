@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { Calendar, Clock, MapPin, User, Phone, RefreshCw, CheckCircle, XCircle, AlertCircle, LogOut } from 'lucide-react';
 import Navbar from '@/components/Navbar';
-import { getCurrentUser, signOut, ensureCustomerRecord, upgradeAnonymousAccount } from '@/lib/auth-helpers';
+import { getCurrentUser, signOut, ensureCustomerRecord } from '@/lib/auth-helpers';
 import { createClient } from '@/utils/supabase/client';
 import { getCustomerBookings } from '@/actions/customers';
 import { logger } from '@/lib/logger';
@@ -19,19 +19,7 @@ export default function MyBookings() {
   const [user, setUser] = useState(null);
   const [customer, setCustomer] = useState(null);
   const [newCreds, setNewCreds] = useState(null);
-  const [setupPwd, setSetupPwd] = useState('');
-  const [setupLoading, setSetupLoading] = useState(false);
-  const [setupError, setSetupError] = useState('');
-  const [setupSuccess, setSetupSuccess] = useState('');
   const [filter, setFilter] = useState('all'); // 'all', 'upcoming', 'past', 'pending', 'confirmed'
-  
-  // Anonymous account upgrade
-  const [upgradeEmail, setUpgradeEmail] = useState('');
-  const [upgradePwd, setUpgradePwd] = useState('');
-  const [upgradeName, setUpgradeName] = useState('');
-  const [upgradeLoading, setUpgradeLoading] = useState(false);
-  const [upgradeError, setUpgradeError] = useState('');
-  const [upgradeSuccess, setUpgradeSuccess] = useState('');
 
   useEffect(() => {
     checkAuthAndFetchBookings();
@@ -95,82 +83,8 @@ export default function MyBookings() {
       setLoading(false);
     }
   };
-  const handleFinishAccountSetup = async () => {
-    setSetupError('');
-    setSetupSuccess('');
-    if (setupPwd.length < 6) {
-      setSetupError('Password must be at least 6 characters.');
-      return;
-    }
-    try {
-      setSetupLoading(true);
-      const supa = createClient();
-      const { error } = await supa.auth.updateUser({
-        password: setupPwd,
-        data: { ...(user?.user_metadata || {}), temp_account: false },
-      });
-      if (error) throw error;
-      setSetupSuccess('Password set successfully. You can use it to sign in later.');
-      // refresh user state
-      const refreshed = await getCurrentUser();
-      setUser(refreshed.user);
-    } catch (e) {
-      setSetupError(e.message || 'Failed to set password');
-    } finally {
-      setSetupLoading(false);
-    }
-  };
 
-  const handleUpgradeAccount = async () => {
-    if (!setupPwd) {
-      setUpgradeError('Password is required');
-      return;
-    }
-    if (setupPwd.length < 6) {
-      setUpgradeError('Password must be at least 6 characters');
-      return;
-    }
-    
-    // Use customer data from booking (email already provided during booking)
-    const email = customer?.email;
-    if (!email) {
-      setUpgradeError('Email not found. Please contact support.');
-      return;
-    }
-    
-    setUpgradeLoading(true);
-    setUpgradeError('');
-    setUpgradeSuccess('');
-    
-    try {
-      const result = await upgradeAnonymousAccount({
-        email: email,
-        password: setupPwd,
-        name: customer?.name || 'Customer',
-        phone: customer?.phone || null
-      });
-      
-      if (!result.success) {
-        setUpgradeError(result.error || 'Failed to upgrade account');
-        return;
-      }
-      
-      setUpgradeSuccess('Account created! You can now sign in with your email.');
-      
-      // Refresh to show updated user state
-      setTimeout(() => {
-        checkAuthAndFetchBookings();
-      }, 1500);
-      
-    } catch (error) {
-      logger.error('Upgrade error:', error);
-      setUpgradeError(error.message || 'Failed to create account');
-    } finally {
-      setUpgradeLoading(false);
-    }
-  };
-
-    const handleRefresh = async () => {
+  const handleRefresh = async () => {
     setRefreshing(true);
     await checkAuthAndFetchBookings();
     setRefreshing(false);
@@ -262,48 +176,36 @@ export default function MyBookings() {
       <Navbar showCompactSearch={true} />
       
       <div className="max-w-4xl mx-auto px-4 py-8">
-        {/* Finish account setup (password) for anonymous users */}
-        {user?.user_metadata?.anonymous && (
-          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
+        {/* Welcome message for verified users */}
+        {user && !user.user_metadata?.anonymous && (
+          <div className="bg-green-50 border border-green-200 rounded-lg p-4 mb-6">
             <div className="flex items-start gap-3">
-              <div className="bg-blue-100 p-2 rounded-full">🔐</div>
+              <div className="bg-green-100 p-2 rounded-full">✓</div>
               <div className="flex-1">
-                <div className="font-semibold text-blue-900 mb-1">Save your booking details</div>
-                <div className="text-sm text-blue-800 mb-2">
-                  Create a password for <span className="font-medium">{customer?.email || 'your account'}</span> to access your bookings anytime.
+                <div className="font-semibold text-green-900 mb-1">Welcome back!</div>
+                <div className="text-sm text-green-800">
+                  Logged in as <span className="font-medium">{customer?.email || user.email}</span>
                 </div>
-                <div className="mt-2 flex gap-2 items-center flex-wrap">
-                  <input
-                    type="password"
-                    value={setupPwd}
-                    onChange={(e) => setSetupPwd(e.target.value)}
-                    placeholder="Create password (6+ chars)"
-                    className="p-2 border rounded flex-1 min-w-[200px]"
-                  />
-                  <button
-                    onClick={handleUpgradeAccount}
-                    disabled={upgradeLoading}
-                    className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50 font-medium whitespace-nowrap"
-                  >
-                    {upgradeLoading ? 'Saving...' : 'Create Account'}
-                  </button>
-                </div>
-                {upgradeError && (
-                  <div className="text-red-600 text-sm mt-2 flex items-center gap-1">
-                    <XCircle className="h-4 w-4" />
-                    {upgradeError}
-                  </div>
-                )}
-                {upgradeSuccess && (
-                  <div className="text-green-700 text-sm mt-2 flex items-center gap-1">
-                    <CheckCircle className="h-4 w-4" />
-                    {upgradeSuccess}
-                  </div>
-                )}
               </div>
             </div>
           </div>
         )}
+
+        {/* Info for anonymous/guest users */}
+        {user?.user_metadata?.anonymous && (
+          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
+            <div className="flex items-start gap-3">
+              <div className="bg-blue-100 p-2 rounded-full">ℹ️</div>
+              <div className="flex-1">
+                <div className="font-semibold text-blue-900 mb-1">Guest Booking</div>
+                <div className="text-sm text-blue-800">
+                  You're viewing bookings as a guest. To access them anytime, <a href="/client-dashboard" className="underline font-medium">create an account</a> or sign in.
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+        
         {/* Header */}
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-8">
           <div>
