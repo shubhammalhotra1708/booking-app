@@ -163,7 +163,7 @@ function SearchResultsInner() {
                       value={query}
                       onChange={(e) => setQuery(e.target.value)}
                       onKeyPress={handleKeyPress}
-                      className="w-full h-10 pl-10 pr-3 text-sm border border-gray-200 rounded-lg placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent"
+                      className="w-full h-10 pl-10 pr-3 text-sm border border-gray-200 rounded-lg placeholder:text-gray-300 focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent"
                     />
                   </div>
                 </div>

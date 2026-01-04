@@ -88,7 +88,7 @@ export default function HeroSection() {
                       value={searchQuery}
                       onChange={(e) => setSearchQuery(e.target.value)}
                       onKeyPress={handleKeyPress}
-                      className="w-full h-10 pl-10 pr-3 text-sm border border-gray-200 rounded-lg placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent bg-gray-50 focus:bg-white transition-all"
+                      className="w-full h-10 pl-10 pr-3 text-sm border border-gray-200 rounded-lg placeholder:text-gray-300 focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent bg-gray-50 focus:bg-white transition-all"
                     />
                   </div>
                 </div>

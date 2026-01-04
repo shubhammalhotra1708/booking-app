@@ -1018,7 +1018,7 @@ function BookingFlowInner() {
                       setValidationErrors({ ...validationErrors, name: '' });
                     }
                   }}
-                  className={`w-full p-3 border rounded-lg focus:ring-2 focus:border-transparent placeholder:text-gray-400 ${
+                  className={`w-full p-3 border rounded-lg focus:ring-2 focus:border-transparent placeholder:text-gray-300 ${
                     validationErrors.name 
                       ? 'border-red-300 focus:ring-red-500' 
                       : 'border-gray-300 focus:ring-blue-500'
@@ -1042,7 +1042,7 @@ function BookingFlowInner() {
                     }
                   }}
                   disabled={loggedIn}
-                  className={`w-full p-3 border rounded-lg focus:ring-2 focus:border-transparent placeholder:text-gray-400 ${
+                  className={`w-full p-3 border rounded-lg focus:ring-2 focus:border-transparent placeholder:text-gray-300 ${
                     validationErrors.phone 
                       ? 'border-red-300 focus:ring-red-500' 
                       : 'border-gray-300 focus:ring-blue-500'
@@ -1069,7 +1069,7 @@ function BookingFlowInner() {
                     }
                   }}
                   disabled={loggedIn}
-                  className={`w-full p-3 border rounded-lg focus:ring-2 focus:border-transparent placeholder:text-gray-400 ${
+                  className={`w-full p-3 border rounded-lg focus:ring-2 focus:border-transparent placeholder:text-gray-300 ${
                     validationErrors.email 
                       ? 'border-red-300 focus:ring-red-500' 
                       : 'border-gray-300 focus:ring-blue-500'
