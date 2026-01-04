@@ -371,7 +371,7 @@ export default function SalonProfile() {
                       <span className="text-sm">{staff.rating}</span>
                     </div>
                     <Link
-                      href={`/book-flow?shopId=${salonId}&staffId=${staff.id}`}
+                      href={`/salon/${salonId}/book`}
                       className="mt-3 px-4 py-2 text-sm border border-teal-600 text-teal-600 rounded-lg hover:bg-teal-50 transition-colors inline-block text-center"
                     >
                       Book with {staff.name.split(' ')[0]}
