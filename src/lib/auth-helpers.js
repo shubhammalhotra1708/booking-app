@@ -23,6 +23,16 @@ export async function signUpWithEmail({ email, password, name, phone, tempAccoun
     };
   }
 
+  // Check if email or phone already exists
+  const existingCheck = await checkExistingCustomer({ email, phone });
+  if (existingCheck.exists) {
+    return {
+      success: false,
+      error: existingCheck.message,
+      code: existingCheck.conflict === 'email' ? 'EMAIL_EXISTS' : 'PHONE_EXISTS'
+    };
+  }
+
   const supabase = createClient();
   
   const { data, error } = await supabase.auth.signUp({
@@ -319,6 +329,66 @@ export async function signInWithPhone({ phone, password }) {
 }
 
 /**
+ * Check if email or phone already exists in Customer table
+ * Returns conflict details if found
+ */
+export async function checkExistingCustomer({ email, phone }) {
+  try {
+    const supa = createClient();
+    const phoneNorm = phone ? normalizePhone(phone) : null;
+
+    // Check email
+    if (email) {
+      const { data: emailMatch, error: emailErr } = await supa
+        .from('Customer')
+        .select('id, email, phone, user_id')
+        .eq('email', email)
+        .maybeSingle();
+      
+      if (emailErr) {
+        logger.error('Error checking email:', emailErr);
+      }
+      
+      if (emailMatch) {
+        return {
+          exists: true,
+          conflict: 'email',
+          message: 'This email is already registered. Please sign in instead.',
+          data: emailMatch
+        };
+      }
+    }
+
+    // Check phone
+    if (phoneNorm) {
+      const { data: phoneMatch, error: phoneErr } = await supa
+        .from('Customer')
+        .select('id, email, phone, user_id')
+        .eq('phone_normalized', phoneNorm)
+        .maybeSingle();
+      
+      if (phoneErr) {
+        logger.error('Error checking phone:', phoneErr);
+      }
+      
+      if (phoneMatch) {
+        return {
+          exists: true,
+          conflict: 'phone',
+          message: 'This phone number is already registered. Please sign in instead.',
+          data: phoneMatch
+        };
+      }
+    }
+
+    return { exists: false };
+  } catch (e) {
+    logger.error('checkExistingCustomer error:', e);
+    return { exists: false, error: e.message };
+  }
+}
+
+/**
  * Send OTP for passwordless authentication
  * Supports both email and phone verification
  * For anonymous users: links OTP identity to existing session
@@ -334,6 +404,20 @@ export async function sendOTP({ email, phone, name }) {
     const method = email ? 'email' : phone ? 'sms' : null;
     if (!method) {
       return { success: false, error: 'Email or phone is required' };
+    }
+
+    // For new users (not logged in), check if email/phone already exists
+    if (!currentUser || isAnonymous) {
+      const existingCheck = await checkExistingCustomer({ email, phone });
+      
+      if (existingCheck.exists) {
+        return {
+          success: false,
+          error: existingCheck.message,
+          code: existingCheck.conflict === 'email' ? 'EMAIL_EXISTS' : 'PHONE_EXISTS',
+          conflict: existingCheck.conflict
+        };
+      }
     }
 
     const identifier = email || phone;

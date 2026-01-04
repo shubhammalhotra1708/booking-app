@@ -427,8 +427,19 @@ function BookingFlowInner() {
         });
 
         if (!result.success) {
-          setBookingError(result.error || 'Failed to send verification code. Please try again.');
+          // Show specific error for email vs phone conflicts
+          if (result.code === 'EMAIL_EXISTS') {
+            setBookingError('This email is already registered. Please use a different email or sign in with your existing account.');
+            setBookingErrorCode('EMAIL_EXISTS');
+          } else if (result.code === 'PHONE_EXISTS') {
+            setBookingError('This phone number is already registered. Please use a different number or sign in with your existing account.');
+            setBookingErrorCode('PHONE_EXISTS');
+          } else {
+            setBookingError(result.error || 'Failed to send verification code. Please try again.');
+            setBookingErrorCode(null);
+          }
           setOtpSending(false);
+          window.scrollTo({ top: 0, behavior: 'smooth' });
           return;
         }
 
@@ -437,6 +448,7 @@ function BookingFlowInner() {
       } catch (error) {
         setBookingError('Failed to send verification code. Please try again.');
         setOtpSending(false);
+        window.scrollTo({ top: 0, behavior: 'smooth' });
       }
       return;
     }
