@@ -500,8 +500,22 @@ export async function verifyOTP({ email, phone, token }) {
         name: data.user.user_metadata?.name || 'Customer'
       });
       
+      // Handle Customer record creation/linking
       if (!customerResult.success) {
-        logger.error('❌ Failed to create/update Customer after OTP verification:', customerResult.error);
+        // ACCOUNT_EXISTS means user already has a Customer record - that's OK for sign-in
+        if (customerResult.error === 'ACCOUNT_EXISTS') {
+          logger.debug('✅ Customer account already exists (sign-in via OTP)');
+        } else {
+          // Real error - log and return failure
+          logger.error('❌ Failed to create/update Customer after OTP verification:', customerResult.error);
+          return { 
+            success: false, 
+            error: customerResult.error || 'CUSTOMER_RECORD_FAILED',
+            message: customerResult.message || 'Failed to create customer record'
+          };
+        }
+      } else {
+        logger.debug('✅ Customer record ensured:', customerResult.data?.id);
       }
 
       // Stamp role=customer
