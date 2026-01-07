@@ -84,11 +84,9 @@ export default function ClientDashboard() {
       });
       
       if (!otpResult.success) {
-        // Show specific error for email vs phone conflicts
+        // Email conflict check (phone duplicates are allowed)
         if (otpResult.code === 'EMAIL_EXISTS') {
           setError('This email is already registered. Please use a different email or sign in with your existing account.');
-        } else if (otpResult.code === 'PHONE_EXISTS') {
-          setError('This phone number is already registered. Please use a different number or sign in with your existing account.');
         } else {
           setError(otpResult.error || 'Failed to send verification code');
         }

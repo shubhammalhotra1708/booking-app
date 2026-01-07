@@ -7,6 +7,17 @@ import { logger } from '@/lib/logger';
 /**
  * Client-side auth helpers for Supabase
  * These are used in client components like forms
+ * 
+ * IDENTITY MODEL:
+ * - Email = Unique identifier (enforced by Supabase auth.users)
+ * - Phone = Contact metadata (NOT unique, can be shared by multiple users)
+ * - user_id = Supabase auth.users.id (primary key for Customer records)
+ * 
+ * Design Rationale:
+ * - Email OTP is the only authentication method (SMS OTP not yet implemented)
+ * - Phone is stored for booking notifications, not authentication
+ * - Multiple users can share the same phone (family/business scenarios)
+ * - Phone/name are updated on each login to keep contact info current
  */
 
 const supabase = createClient();
@@ -329,15 +340,17 @@ export async function signInWithPhone({ phone, password }) {
 }
 
 /**
- * Check if email or phone already exists in Customer table
- * Returns conflict details if found
+ * Check if email already exists in Customer table
+ * 
+ * NOTE: Phone is NOT checked for duplicates - it's contact info only.
+ * Multiple users can share the same phone number (family/business use case).
+ * Email is the sole unique identifier via Supabase auth.users.
  */
 export async function checkExistingCustomer({ email, phone }) {
   try {
     const supa = createClient();
-    const phoneNorm = phone ? normalizePhone(phone) : null;
 
-    // Check email
+    // Check email only - this is the unique identifier
     if (email) {
       const { data: emailMatch, error: emailErr } = await supa
         .from('Customer')
@@ -359,27 +372,8 @@ export async function checkExistingCustomer({ email, phone }) {
       }
     }
 
-    // Check phone
-    if (phoneNorm) {
-      const { data: phoneMatch, error: phoneErr } = await supa
-        .from('Customer')
-        .select('id, email, phone, user_id')
-        .eq('phone_normalized', phoneNorm)
-        .maybeSingle();
-      
-      if (phoneErr) {
-        logger.error('Error checking phone:', phoneErr);
-      }
-      
-      if (phoneMatch) {
-        return {
-          exists: true,
-          conflict: 'phone',
-          message: 'This phone number is already registered. Please sign in instead.',
-          data: phoneMatch
-        };
-      }
-    }
+    // Phone is NOT checked - allowing duplicate phones for shared family/business numbers
+    // Phone is stored as contact metadata, not an authentication identifier
 
     return { exists: false };
   } catch (e) {
@@ -630,7 +624,41 @@ export async function ensureCustomerRecord(overrides = {}) {
       .select('*')
       .eq('user_id', user.id)
       .maybeSingle();
+    
     if (existingByUser) {
+      // Update phone/name on each login to keep contact info current
+      const shouldUpdate = 
+        (rawPhone && rawPhone !== existingByUser.phone) ||
+        (overrides.name && overrides.name !== existingByUser.name);
+      
+      if (shouldUpdate) {
+        logger.debug('📱 Updating customer contact info:', { 
+          id: existingByUser.id,
+          oldPhone: existingByUser.phone,
+          newPhone: rawPhone,
+          oldName: existingByUser.name,
+          newName: overrides.name
+        });
+        
+        const { data: updated, error: updateErr } = await supa
+          .from('Customer')
+          .update({
+            phone: rawPhone || existingByUser.phone,
+            phone_normalized: phoneNorm || existingByUser.phone_normalized,
+            name: overrides.name || existingByUser.name
+          })
+          .eq('id', existingByUser.id)
+          .select('*')
+          .maybeSingle();
+        
+        if (updated) {
+          if (typeof window !== 'undefined') window.__ensuringCustomer = false;
+          return { success: true, data: updated, error: null, updated: true };
+        } else {
+          logger.warn('⚠️ Failed to update contact info:', updateErr);
+        }
+      }
+      
       if (typeof window !== 'undefined') window.__ensuringCustomer = false;
       return { success: true, data: existingByUser, error: null };
     }
@@ -701,39 +729,11 @@ export async function ensureCustomerRecord(overrides = {}) {
       }
     }
     
-    // Check phone (if provided and email didn't find a match)
-    let existingByPhone = null;
-    if (phoneNorm && !existingByEmail) {
-      const { data: phoneMatch, error: phoneErr } = await supa
-        .from('Customer')
-        .select('*')
-        .eq('phone_normalized', phoneNorm)
-        .maybeSingle();
-      if (phoneErr) logger.error('❌ Phone lookup failed:', phoneErr);
-      if (phoneMatch) {
-        existingByPhone = phoneMatch;
-        // If belongs to different user AND we're anonymous, this is a conflict - need to sign in instead
-        if (phoneMatch.user_id && phoneMatch.user_id !== user.id) {
-          if (isAnonymous) {
-            logger.warn('⚠️ Anonymous user trying to use phone from existing account - need to sign in');
-            if (typeof window !== 'undefined') window.__ensuringCustomer = false;
-            return { 
-              success: false, 
-              data: null, 
-              error: 'EXISTING_ACCOUNT_SIGNIN_REQUIRED',
-              message: 'This phone number is already registered. Please sign in to link your bookings.',
-              existingUserId: phoneMatch.user_id
-            };
-          }
-          logger.warn('⚠️ Phone already claimed by another user');
-          if (typeof window !== 'undefined') window.__ensuringCustomer = false;
-          return { success: false, data: null, error: 'ACCOUNT_EXISTS' };
-        }
-        logger.debug('✅ Found Customer by phone:', phoneMatch.id, phoneMatch.user_id ? '(claimed)' : '(guest)');
-      }
-    }
+    // Phone lookup removed - phone is NOT unique identifier
+    // Multiple users can have same phone (shared family/business numbers)
+    // Email via Supabase auth is the sole unique identifier
     
-    const guestMatch = existingByEmail || existingByPhone;
+    const guestMatch = existingByEmail;
     
     if (!guestMatch) {
       logger.debug('ℹ️ No existing Customer found, will create new record');
