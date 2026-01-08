@@ -28,6 +28,7 @@ export default function SalonProfile() {
   
   const [isFavorited, setIsFavorited] = useState(false);
   const [selectedImageIndex, setSelectedImageIndex] = useState(0);
+  const [genderFilter, setGenderFilter] = useState('ALL');
 
   // Use API data
   let salon, services, staff;
@@ -285,9 +286,51 @@ export default function SalonProfile() {
 
             {/* Services */}
             <div className="bg-white rounded-xl shadow-lg p-6">
-              <h2 className="text-2xl font-bold text-gray-900 mb-6">Services & Pricing</h2>
+              <div className="flex items-center justify-between mb-6">
+                <h2 className="text-2xl font-bold text-gray-900">Services & Pricing</h2>
+                
+                {/* Gender Filter Tabs */}
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => setGenderFilter('ALL')}
+                    className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                      genderFilter === 'ALL'
+                        ? 'bg-gray-700 text-white'
+                        : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                    }`}
+                  >
+                    All Services
+                  </button>
+                  <button
+                    onClick={() => setGenderFilter('MALE')}
+                    className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                      genderFilter === 'MALE'
+                        ? 'bg-blue-600 text-white'
+                        : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                    }`}
+                  >
+                    Men
+                  </button>
+                  <button
+                    onClick={() => setGenderFilter('FEMALE')}
+                    className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                      genderFilter === 'FEMALE'
+                        ? 'bg-pink-600 text-white'
+                        : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                    }`}
+                  >
+                    Women
+                  </button>
+                </div>
+              </div>
+              
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {salon.services?.map((service) => (
+                {salon.services?.filter((service) => {
+                  // Filter by gender
+                  if (genderFilter === 'ALL') return true;
+                  const serviceGender = service.targetgender?.[0] || service.targetGender?.[0];
+                  return serviceGender === genderFilter || serviceGender === 'ALL';
+                }).map((service) => (
                   <div key={service.id} className="border border-gray-200 rounded-lg p-4">
                     {service.image_url && (
                       <img
@@ -300,7 +343,20 @@ export default function SalonProfile() {
                       />
                     )}
                     <div className="flex justify-between items-start mb-2">
-                      <h3 className="font-semibold text-gray-900">{service.name}</h3>
+                      <div className="flex-1">
+                        <h3 className="font-semibold text-gray-900 mb-1">{service.name}</h3>
+                        {/* Gender Badge */}
+                        {(() => {
+                          const gender = service.targetgender?.[0] || service.targetGender?.[0] || 'ALL';
+                          if (gender === 'MALE') {
+                            return <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-50 text-blue-700">Men</span>;
+                          } else if (gender === 'FEMALE') {
+                            return <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-pink-50 text-pink-700">Women</span>;
+                          } else {
+                            return <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-700">Unisex</span>;
+                          }
+                        })()}
+                      </div>
                       <span className="text-lg font-bold text-teal-600">₹{service.price}</span>
                     </div>
                     <p className="text-sm text-gray-600 mb-3">{service.duration}</p>
