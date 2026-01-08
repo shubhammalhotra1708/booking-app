@@ -23,11 +23,17 @@ export async function GET(request) {
   }
 
   if (code) {
-    const cookieStore = cookies();
+    const cookieStore = await cookies();
     const supabase = createServerClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL,
       process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
       {
+        cookieOptions: {
+          name: 'sb-booking-auth',
+          lifetime: 60 * 60 * 24 * 7, // 7 days
+          path: '/',
+          sameSite: 'lax',
+        },
         cookies: {
           getAll() {
             return cookieStore.getAll();

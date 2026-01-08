@@ -17,6 +17,13 @@ export const createClient = (request) => {
     supabaseUrl,
     supabaseKey,
     {
+      cookieOptions: {
+        // Use a distinct cookie name so booking-app middleware cookies don't collide with admin app
+        name: 'sb-booking-auth',
+        lifetime: 60 * 60 * 24 * 7, // 7 days
+        path: '/',
+        sameSite: 'lax',
+      },
       cookies: {
         getAll() {
           return request.cookies.getAll()
