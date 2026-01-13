@@ -221,11 +221,13 @@ export async function POST(request) {
       p_customer_notes: bookingData.customer_notes || bookingData.notes || null,
     };
 
-    logger.info('RPC params with types:', Object.entries(rpcParams).map(([k, v]) => `${k}: ${v} (${typeof v})`).join(', '));
+    console.log('🔍 RPC PARAMS:', JSON.stringify(rpcParams, null, 2));
+    console.log('🔍 PARAM TYPES:', Object.entries(rpcParams).map(([k, v]) => `${k}=${typeof v}`).join(', '));
 
     const { data: booking, error: rpcError } = await supabase.rpc('book_slot', rpcParams);
 
     if (rpcError) {
+      console.error('❌ RPC ERROR:', JSON.stringify(rpcError, null, 2));
       logger.error('RPC book_slot error:', rpcError);
       const msg = rpcError.message || '';
       if (msg.includes('SLOT_CONFLICT')) {
