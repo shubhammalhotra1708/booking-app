@@ -745,11 +745,15 @@ function BookingFlowInner() {
               setBookingError(data.error || 'Booking failed. Please try again.');
             }
         }
+        // Scroll to top to show error message
+        window.scrollTo({ top: 0, behavior: 'smooth' });
       }
     } catch (error) {
       console.error('Booking error:', error);
       setBookingError('Booking failed: Network error');
       setBookingErrorCode('NETWORK_ERROR');
+      // Scroll to top to show error message
+      window.scrollTo({ top: 0, behavior: 'smooth' });
     } finally {
       setLoading(false);
     }

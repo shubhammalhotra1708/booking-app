@@ -6,6 +6,9 @@ import { createErrorResponse, createSuccessResponse } from '@/lib/validation';
 // Note: This API is designed for public access (booking app)
 // Make sure RLS policies allow public read access to Shop table
 
+// Force dynamic rendering since we use cookies for auth
+export const dynamic = 'force-dynamic';
+
 // Cache for 5 minutes for shop listings
 export const revalidate = 300;
 
