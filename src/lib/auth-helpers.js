@@ -618,6 +618,11 @@ export async function ensureCustomerRecord(overrides = {}) {
       window.__ensuringCustomer = true;
     }
 
+    // Get phone and email data FIRST before any lookups
+    const rawPhone = overrides.phone || user.user_metadata?.phone || null;
+    const phoneNorm = normalizePhone(rawPhone);
+    const emailCandidate = overrides.email || user.email || null;
+
     // 1. Resolve existing Customer by user_id
     const { data: existingByUser } = await supa
       .from('Customer')
@@ -664,10 +669,6 @@ export async function ensureCustomerRecord(overrides = {}) {
     }
 
     // 2. Check if phone/email already exists (claimed or unclaimed)
-    const rawPhone = overrides.phone || user.user_metadata?.phone || null;
-    const phoneNorm = normalizePhone(rawPhone);
-    const emailCandidate = overrides.email || user.email || null;
-
     logger.debug('🔍 Looking for existing Customer to claim or detect conflict:', { phoneNorm, emailCandidate });
 
     // CRITICAL: For anonymous users, check if email exists in auth.users first!
