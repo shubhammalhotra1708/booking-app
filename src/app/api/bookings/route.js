@@ -205,7 +205,7 @@ export async function POST(request) {
       }
     }
 
-    const { data: booking, error: rpcError } = await supabase.rpc('book_slot', {
+    const rpcParams = {
       p_shop_id: bookingData.shop_id,
       p_service_id: bookingData.service_id,
       p_customer_name: bookingData.customer_name,
@@ -219,7 +219,11 @@ export async function POST(request) {
       p_customer_id: resolvedCustomerId,
       p_customer_email: customerEmail,
       p_customer_notes: bookingData.customer_notes || bookingData.notes || null,
-    });
+    };
+
+    logger.info('RPC params with types:', Object.entries(rpcParams).map(([k, v]) => `${k}: ${v} (${typeof v})`).join(', '));
+
+    const { data: booking, error: rpcError } = await supabase.rpc('book_slot', rpcParams);
 
     if (rpcError) {
       logger.error('RPC book_slot error:', rpcError);
