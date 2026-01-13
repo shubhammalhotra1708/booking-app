@@ -211,7 +211,9 @@ export async function POST(request) {
       p_customer_name: bookingData.customer_name,
       p_customer_phone: normalizedPhone,
       p_date: bookingData.booking_date,
-      p_time: bookingData.booking_time,
+      p_time: bookingData.booking_time.includes(':') && bookingData.booking_time.split(':').length === 2 
+        ? `${bookingData.booking_time}:00` 
+        : bookingData.booking_time,
       p_duration_min: service.duration,
       p_staff_id: bookingData.staff_id || null,
       p_customer_id: resolvedCustomerId,
