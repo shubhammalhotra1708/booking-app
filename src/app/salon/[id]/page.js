@@ -21,7 +21,19 @@ import { HeartIcon as HeartSolidIcon } from '@heroicons/react/24/solid';
 export default function SalonProfile() {
   const params = useParams();
   const router = useRouter();
-  const salonId = parseInt(params.id);
+  const salonId = params.id ? parseInt(params.id, 10) : null;
+
+  // Early return if no valid salon ID
+  if (!salonId || isNaN(salonId)) {
+    return (
+      <div className="min-h-screen bg-gray-50">
+        <div className="max-w-7xl mx-auto px-4 py-16 text-center">
+          <h1 className="text-2xl font-bold text-gray-900">There was an error while loading the Salon</h1>
+          <p className="text-gray-600 mt-2">Please go back and try again.</p>
+        </div>
+      </div>
+    );
+  }
   
   // Fetch real shop data from API
   const { shop: apiShop, services: apiServices, staff: apiStaff, loading, error } = useShopDetails(salonId);

@@ -23,8 +23,8 @@ export default function FeaturedSalons({ salons = null }) {
       try {
         setLoading(true);
         
-        // Fetch top 5 shops only for fast loading (no complex joins)
-        const response = await fetch('/api/shops?limit=5&basic=true');
+        // Fetch top 10 shops for display (includes newly created shops)
+        const response = await fetch('/api/shops?limit=10&basic=true');
         const result = await response.json();
         
         if (result.success && result.data?.length > 0) {

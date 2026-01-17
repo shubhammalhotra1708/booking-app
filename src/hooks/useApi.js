@@ -162,12 +162,18 @@ export const useShopDetails = (shopId) => {
   const [error, setError] = useState(null);
 
   useEffect(() => {
-    if (!shopId) return;
+    if (!shopId || isNaN(shopId)) {
+      setError('Invalid shop ID');
+      setLoading(false);
+      return;
+    }
 
     const fetchShopDetails = async () => {
       try {
         setLoading(true);
         setError(null);
+        
+        console.log(`📡 Fetching shop details for ID: ${shopId}`);
         
         // Fetch shop details, services, and staff in parallel
         const [shopResponse, servicesResponse, staffResponse] = await Promise.all([
@@ -182,21 +188,28 @@ export const useShopDetails = (shopId) => {
           staffResponse.json()
         ]);
         
+        console.log(`📦 Shop data response:`, shopData);
+        
         if (shopData.success && shopData.data?.length > 0) {
           setShop(shopData.data[0]);
+          console.log(`✅ Shop loaded: ${shopData.data[0].name}`);
         } else {
+          console.error(`❌ Shop not found for ID: ${shopId}`);
           setError('Shop not found');
         }
         
         if (servicesData.success) {
           setServices(servicesData.data || []);
+          console.log(`✅ Loaded ${servicesData.data?.length || 0} services`);
         }
         
         if (staffData.success) {
           setStaff(staffData.data || []);
+          console.log(`✅ Loaded ${staffData.data?.length || 0} staff`);
         }
         
       } catch (err) {
+        console.error(`❌ Error fetching shop details:`, err);
         setError(err.message);
       } finally {
         setLoading(false);
