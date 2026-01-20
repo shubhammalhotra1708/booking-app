@@ -49,8 +49,8 @@ export default function HeroSection() {
         <div className="text-center max-w-4xl mx-auto">
           
           {/* Main Heading - Ultra Compact */}
-          <div className="mb-6">
-            <h1 className="heading-xl text-2xl md:text-3xl lg:text-4xl font-bold" style={{ lineHeight: '1.1', marginBottom: '12px' }}>
+          <div className="mb-4 sm:mb-6">
+            <h1 className="heading-xl text-xl sm:text-2xl md:text-3xl lg:text-4xl font-bold" style={{ lineHeight: '1.1', marginBottom: '12px' }}>
               Book your next
               <span className="block mt-1" style={{ 
                 background: 'linear-gradient(135deg, var(--accent-primary), var(--accent-secondary))',
@@ -62,33 +62,33 @@ export default function HeroSection() {
               </span>
             </h1>
             
-            <p className="text-body text-sm md:text-base max-w-xl mx-auto" style={{ color: 'var(--foreground-secondary)', lineHeight: '1.4' }}>
+            <p className="text-body text-xs sm:text-sm md:text-base max-w-xl mx-auto" style={{ color: 'var(--foreground-secondary)', lineHeight: '1.4' }}>
               Discover top-rated salons and spas near you. Book instantly.
             </p>
           </div>
 
           {/* Enhanced Search Widget - Ultra Compact */}
-          <div className="max-w-xl mx-auto mb-4">
-            <div className="bg-white rounded-xl p-3 md:p-4" style={{ 
+          <div className="max-w-xl mx-auto mb-3 sm:mb-4">
+            <div className="bg-white rounded-xl p-2.5 sm:p-3 md:p-4" style={{ 
               boxShadow: '0 8px 32px -8px rgba(0, 0, 0, 0.12), 0 0 0 1px rgba(0, 0, 0, 0.05)',
               border: '1px solid rgba(229, 231, 235, 0.3)'
             }}>
-              <div className="flex gap-3 md:gap-4">
+              <div className="flex flex-col sm:flex-row gap-2 sm:gap-3 md:gap-4">
                 
                 {/* Search Input */}
                 <div className="flex-1">
-                  <label className="block text-xs font-semibold mb-2 text-gray-600 uppercase tracking-wide">
+                  <label className="block text-[10px] sm:text-xs font-semibold mb-1.5 sm:mb-2 text-gray-600 uppercase tracking-wide">
                     🔍 Search
                   </label>
                   <div className="relative">
-                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 z-10 text-gray-400" />
+                    <Search className="absolute left-2.5 sm:left-3 top-1/2 transform -translate-y-1/2 h-3.5 w-3.5 sm:h-4 sm:w-4 z-10 text-gray-400" />
                     <input
                       type="text"
                       placeholder="Search salons or services..."
                       value={searchQuery}
                       onChange={(e) => setSearchQuery(e.target.value)}
                       onKeyPress={handleKeyPress}
-                      className="w-full h-10 pl-10 pr-3 text-sm border border-gray-200 rounded-lg placeholder:text-gray-300 focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent bg-gray-50 focus:bg-white transition-all"
+                      className="w-full h-9 sm:h-10 pl-8 sm:pl-10 pr-3 text-xs sm:text-sm border border-gray-200 rounded-lg placeholder:text-gray-300 focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent bg-gray-50 focus:bg-white transition-all"
                     />
                   </div>
                 </div>
@@ -98,12 +98,12 @@ export default function HeroSection() {
                   <button
                     onClick={handleSearch}
                     disabled={isSearching || !searchQuery.trim()}
-                    className="px-6 h-10 bg-sky-500 text-white text-sm font-semibold rounded-lg hover:bg-sky-600 transition-all duration-300 shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 disabled:opacity-75 disabled:cursor-not-allowed disabled:transform-none whitespace-nowrap"
+                    className="w-full sm:w-auto px-4 sm:px-6 h-9 sm:h-10 bg-sky-500 text-white text-xs sm:text-sm font-semibold rounded-lg hover:bg-sky-600 transition-all duration-300 shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 disabled:opacity-75 disabled:cursor-not-allowed disabled:transform-none whitespace-nowrap"
                   >
                     {isSearching ? (
                       <div className="flex items-center justify-center gap-2">
                         <div className="animate-spin rounded-full h-3 w-3 border-2 border-white border-t-transparent"></div>
-                        Searching...
+                        <span className="hidden sm:inline">Searching...</span>
                       </div>
                     ) : (
                       'Search'
@@ -124,11 +124,11 @@ export default function HeroSection() {
 
           {/* Popular Service Categories Pills - Bottom of Hero Section */}
           {!isSearching && (
-            <div className="mt-8 mb-4">
-              <p className="text-xs font-medium text-gray-600 mb-3 uppercase tracking-wide">
+            <div className="mt-6 sm:mt-8 mb-3 sm:mb-4">
+              <p className="text-[10px] sm:text-xs font-medium text-gray-600 mb-2 sm:mb-3 uppercase tracking-wide">
                 Popular Services
               </p>
-              <div className="flex justify-center items-center gap-2 overflow-x-auto scrollbar-hide">
+              <div className="flex justify-center items-center gap-1.5 sm:gap-2 overflow-x-auto scrollbar-hide pb-2">
                 {[
                   { name: 'Hair Salon', icon: '💇‍♀️' },
                   { name: 'Nail Salon', icon: '💅' },
@@ -144,10 +144,10 @@ export default function HeroSection() {
                       setSearchQuery(service.name);
                       handleSearch(service.name);
                     }}
-                    className="flex-shrink-0 inline-flex items-center px-3 py-1.5 bg-white text-gray-700 text-xs font-medium rounded-full border border-gray-200 hover:border-sky-300 hover:bg-sky-50 hover:text-sky-700 transition-all duration-200 shadow-sm hover:shadow-md transform hover:-translate-y-0.5"
+                    className="flex-shrink-0 inline-flex items-center px-2 sm:px-3 py-1 sm:py-1.5 bg-white text-gray-700 text-[10px] sm:text-xs font-medium rounded-full border border-gray-200 hover:border-sky-300 hover:bg-sky-50 hover:text-sky-700 transition-all duration-200 shadow-sm hover:shadow-md transform hover:-translate-y-0.5"
                   >
-                    <span className="mr-1.5 text-xs">{service.icon}</span>
-                    {service.name}
+                    <span className="mr-1 sm:mr-1.5 text-xs">{service.icon}</span>
+                    <span className="whitespace-nowrap">{service.name}</span>
                   </button>
                 ))}
               </div>
