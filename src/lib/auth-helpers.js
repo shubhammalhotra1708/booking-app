@@ -403,7 +403,7 @@ export async function sendOTP({ email, phone, name }) {
     // For new users (not logged in), check if email/phone already exists
     if (!currentUser || isAnonymous) {
       const existingCheck = await checkExistingCustomer({ email, phone });
-      
+
       if (existingCheck.exists) {
         return {
           success: false,
@@ -414,8 +414,6 @@ export async function sendOTP({ email, phone, name }) {
       }
     }
 
-    const identifier = email || phone;
-    
     // For anonymous users, use linkIdentity to upgrade session
     // For new/existing users, use signInWithOtp
     const options = {
@@ -435,7 +433,7 @@ export async function sendOTP({ email, phone, name }) {
       options.shouldCreateUser = false;
     }
 
-    const otpParams = email 
+    const otpParams = email
       ? { email, options }
       : { phone, options };
 
@@ -444,8 +442,8 @@ export async function sendOTP({ email, phone, name }) {
     if (error) {
       logger.error('❌ sendOTP error:', error);
       if (error.message?.includes('already registered') || error.status === 422) {
-        return { 
-          success: false, 
+        return {
+          success: false,
           error: 'This email/phone is already registered. Please sign in instead.',
           code: 'already_registered'
         };

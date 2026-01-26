@@ -11,6 +11,31 @@ export default function OTPModal({ isOpen, onClose, onVerify, contactInfo, verif
   const [countdown, setCountdown] = useState(0);
   const inputRefs = useRef([]);
 
+  // Get rate limit key for this contact
+  const getRateLimitKey = () => {
+    const contact = typeof contactInfo === 'string'
+      ? contactInfo
+      : verificationType === 'email'
+        ? contactInfo?.email
+        : contactInfo?.phone;
+    return `otp_last_sent_${contact}`;
+  };
+
+  // Calculate remaining time from localStorage
+  const getRemainingTime = () => {
+    const key = getRateLimitKey();
+    const lastSent = localStorage.getItem(key);
+    if (!lastSent) return 0;
+
+    const timeSince = Date.now() - parseInt(lastSent);
+    const RATE_LIMIT_DURATION = 120000; // 2 minutes
+
+    if (timeSince < RATE_LIMIT_DURATION) {
+      return Math.ceil((RATE_LIMIT_DURATION - timeSince) / 1000);
+    }
+    return 0;
+  };
+
   // Countdown for resend button
   useEffect(() => {
     if (countdown > 0) {
@@ -19,10 +44,11 @@ export default function OTPModal({ isOpen, onClose, onVerify, contactInfo, verif
     }
   }, [countdown]);
 
-  // Start countdown when modal opens
+  // Start countdown when modal opens (check localStorage for existing rate limit)
   useEffect(() => {
     if (isOpen) {
-      setCountdown(60);
+      const remainingTime = getRemainingTime();
+      setCountdown(remainingTime || 120); // 2 minutes default
       setOtp(['', '', '', '', '', '']);
       setError('');
     }
