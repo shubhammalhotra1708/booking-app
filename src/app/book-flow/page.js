@@ -789,7 +789,7 @@ function BookingFlowInner() {
           <div className="flex items-center justify-between h-16">
             <div className="flex items-center space-x-4">
               <Link href="/" className="text-xl font-bold text-sky-600 hover:text-sky-700 transition-colors">
-                BookEz
+                EzBook
               </Link>
               <div className="h-6 w-px bg-gray-300"></div>
               <button

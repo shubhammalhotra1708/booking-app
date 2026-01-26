@@ -9,7 +9,7 @@ const inter = Inter({
 });
 
 export const metadata = {
-  title: "BookEz - Find & Book Beauty Services",
+  title: "ezBook - Find & Book Beauty Services",
   description: "Discover and book appointments at the best salons and spas near you. Trusted by thousands across India.",
 };
 

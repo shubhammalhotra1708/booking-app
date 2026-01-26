@@ -86,7 +86,7 @@ export default function Navbar({ showCompactSearch = false }) {
                 showScrollSearch || showCompactSearch ? 'text-sky-500' : 'text-gray-800'
               }`}
             >
-              BookEz
+              EzBook
             </Link>
           </div>
 
