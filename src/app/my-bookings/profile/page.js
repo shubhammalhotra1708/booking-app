@@ -372,22 +372,14 @@ export default function ProfilePage() {
                   <input
                     type="email"
                     value={formData.email}
-                    onChange={(e) => {
-                      setFormData({ ...formData, email: e.target.value });
-                      if (validationErrors.email) {
-                        setValidationErrors({ ...validationErrors, email: '' });
-                      }
-                    }}
-                    className={`w-full p-3 border rounded-lg focus:ring-2 focus:border-transparent ${
-                      validationErrors.email 
-                        ? 'border-red-300 focus:ring-red-500' 
-                        : 'border-gray-300 focus:ring-blue-500'
-                    }`}
+                    disabled
+                    className="w-full p-3 border border-gray-300 rounded-lg bg-gray-100 text-gray-600 cursor-not-allowed"
                     placeholder="Enter your email address"
                   />
-                  {validationErrors.email && (
-                    <p className="text-red-500 text-sm mt-1">{validationErrors.email}</p>
-                  )}
+                  <p className="text-sm text-gray-500 mt-1">
+                    <Lock className="w-3 h-3 inline mr-1" />
+                    Email cannot be changed for security reasons
+                  </p>
                 </div>
               ) : (
                 <p className="text-gray-900 text-lg">{formData.email || '—'}</p>

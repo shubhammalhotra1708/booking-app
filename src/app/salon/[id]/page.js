@@ -5,11 +5,8 @@ import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import Image from 'next/image';
 import Navbar from '../../../components/Navbar';
-import ReviewSection from '../../../components/ReviewSection';
 import { useShopDetails } from '../../../hooks/useApi';
 import { transformShopData, transformServiceData, transformStaffData } from '../../../utils/transformData';
-// Keep as fallback
-import { salonDetails, reviews } from '../../../data/mockData';
 import { 
   StarIcon, 
   MapPinIcon, 
@@ -24,15 +21,28 @@ import { HeartIcon as HeartSolidIcon } from '@heroicons/react/24/solid';
 export default function SalonProfile() {
   const params = useParams();
   const router = useRouter();
-  const salonId = parseInt(params.id);
+  const salonId = params.id ? parseInt(params.id, 10) : null;
+
+  // Early return if no valid salon ID
+  if (!salonId || isNaN(salonId)) {
+    return (
+      <div className="min-h-screen bg-gray-50">
+        <div className="max-w-7xl mx-auto px-4 py-16 text-center">
+          <h1 className="text-2xl font-bold text-gray-900">There was an error while loading the Salon</h1>
+          <p className="text-gray-600 mt-2">Please go back and try again.</p>
+        </div>
+      </div>
+    );
+  }
   
   // Fetch real shop data from API
   const { shop: apiShop, services: apiServices, staff: apiStaff, loading, error } = useShopDetails(salonId);
   
   const [isFavorited, setIsFavorited] = useState(false);
   const [selectedImageIndex, setSelectedImageIndex] = useState(0);
+  const [genderFilter, setGenderFilter] = useState('ALL');
 
-  // Use API data or fallback to mock data
+  // Use API data
   let salon, services, staff;
   
   if (!loading && !error && apiShop) {
@@ -44,11 +54,6 @@ export default function SalonProfile() {
     };
     services = salon.services || [];
     staff = salon.staff || [];
-  } else {
-    // Fallback to mock data
-    salon = salonDetails[salonId];
-    services = salon?.services || [];
-    staff = salon?.staff || [];
   }
   
   // Build image array with real images from DB + fallbacks
@@ -88,8 +93,6 @@ export default function SalonProfile() {
     
     return images;
   }, [salon?.banner_url, salon?.gallery_urls, salon?.logo_url, salon?.images, salon?.image]);
-  
-  const salonReviews = reviews.filter(review => review.salonId === salonId);
 
   // Loading state
   if (loading) {
@@ -105,7 +108,7 @@ export default function SalonProfile() {
   }
 
   // Error or not found state
-  if (!salon || (error && !salonDetails[salonId])) {
+  if (!salon || error) {
     return (
       <div className="min-h-screen bg-gray-50">
         <Navbar showCompactSearch={true} />
@@ -135,71 +138,70 @@ export default function SalonProfile() {
     <div className="min-h-screen" style={{ background: 'var(--background-secondary)' }}>
       <Navbar showCompactSearch={true} />
       
-      <div className="container-booksy section-padding-sm">
+      <div className="container-booksy px-3 sm:px-4 py-4 sm:py-6">
         {/* Enhanced Image Gallery */}
-        <div className="grid grid-cols-1 lg:grid-cols-4 gap-6 mb-8">
-          <div className="lg:col-span-3">
-            <div className="card-booksy overflow-hidden h-96 relative group">
-              <img
-                src={salonImages[selectedImageIndex]}
-                alt={`${salon.name} - Image ${selectedImageIndex + 1}`}
-                className="w-full h-full object-cover"
-                onError={(e) => {
-                  e.target.onerror = null;
-                  e.target.src = '/s1.jpeg'; // Fallback on error
-                }}
-              />
-              
-              {/* Image counter badge */}
-              {salonImages.length > 1 && (
-                <div className="absolute top-4 right-4 bg-black/60 text-white px-3 py-1 rounded-full text-sm flex items-center gap-2">
-                  <CameraIcon className="h-4 w-4" />
-                  {selectedImageIndex + 1} / {salonImages.length}
-                </div>
-              )}
-              
-              {/* Navigation arrows for desktop */}
-              {salonImages.length > 1 && (
-                <>
+        <div className="mb-4 sm:mb-6 lg:mb-8">
+          {/* Main Image */}
+          <div className="card-booksy overflow-hidden h-64 sm:h-80 lg:h-96 relative group mb-3 sm:mb-4">
+            <img
+              src={salonImages[selectedImageIndex]}
+              alt={`${salon.name} - Image ${selectedImageIndex + 1}`}
+              className="w-full h-full object-cover"
+              onError={(e) => {
+                e.target.onerror = null;
+                e.target.src = '/s1.jpeg';
+              }}
+            />
+            
+            {/* Image counter badge */}
+            {salonImages.length > 1 && (
+              <div className="absolute top-2 sm:top-4 right-2 sm:right-4 bg-black/60 text-white px-2 sm:px-3 py-1 rounded-full text-xs sm:text-sm flex items-center gap-1 sm:gap-2">
+                <CameraIcon className="h-3 w-3 sm:h-4 sm:w-4" />
+                {selectedImageIndex + 1} / {salonImages.length}
+              </div>
+            )}
+            
+            {/* Navigation arrows - visible on mobile, hover on desktop */}
+            {salonImages.length > 1 && (
+              <>
+                <button
+                  onClick={() => setSelectedImageIndex((prev) => (prev === 0 ? salonImages.length - 1 : prev - 1))}
+                  className="absolute left-2 sm:left-4 top-1/2 -translate-y-1/2 bg-white/90 hover:bg-white text-gray-800 rounded-full p-2 sm:p-3 opacity-100 lg:opacity-0 lg:group-hover:opacity-100 transition-opacity shadow-lg"
+                >
+                  <svg className="w-4 h-4 sm:w-6 sm:h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                  </svg>
+                </button>
+                <button
+                  onClick={() => setSelectedImageIndex((prev) => (prev === salonImages.length - 1 ? 0 : prev + 1))}
+                  className="absolute right-2 sm:right-4 top-1/2 -translate-y-1/2 bg-white/90 hover:bg-white text-gray-800 rounded-full p-2 sm:p-3 opacity-100 lg:opacity-0 lg:group-hover:opacity-100 transition-opacity shadow-lg"
+                >
+                  <svg className="w-4 h-4 sm:w-6 sm:h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                  </svg>
+                </button>
+              </>
+            )}
+            
+            {/* Image Navigation Dots */}
+            {salonImages.length > 1 && salonImages.length <= 10 && (
+              <div className="absolute bottom-2 sm:bottom-4 left-1/2 transform -translate-x-1/2 flex space-x-1.5 sm:space-x-2">
+                {salonImages.map((_, index) => (
                   <button
-                    onClick={() => setSelectedImageIndex((prev) => (prev === 0 ? salonImages.length - 1 : prev - 1))}
-                    className="absolute left-4 top-1/2 -translate-y-1/2 bg-white/90 hover:bg-white text-gray-800 rounded-full p-3 opacity-0 group-hover:opacity-100 transition-opacity shadow-lg"
-                  >
-                    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-                    </svg>
-                  </button>
-                  <button
-                    onClick={() => setSelectedImageIndex((prev) => (prev === salonImages.length - 1 ? 0 : prev + 1))}
-                    className="absolute right-4 top-1/2 -translate-y-1/2 bg-white/90 hover:bg-white text-gray-800 rounded-full p-3 opacity-0 group-hover:opacity-100 transition-opacity shadow-lg"
-                  >
-                    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                    </svg>
-                  </button>
-                </>
-              )}
-              
-              {/* Image Navigation Dots */}
-              {salonImages.length > 1 && salonImages.length <= 10 && (
-                <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2 flex space-x-2">
-                  {salonImages.map((_, index) => (
-                    <button
-                      key={index}
-                      onClick={() => setSelectedImageIndex(index)}
-                      className={`w-3 h-3 rounded-full transition-all ${
-                        selectedImageIndex === index ? 'bg-white w-8' : 'bg-white/50 hover:bg-white/75'
-                      }`}
-                      aria-label={`View image ${index + 1}`}
-                    />
-                  ))}
-                </div>
-              )}
-            </div>
+                    key={index}
+                    onClick={() => setSelectedImageIndex(index)}
+                    className={`h-2 sm:h-3 rounded-full transition-all ${
+                      selectedImageIndex === index ? 'bg-white w-6 sm:w-8' : 'bg-white/50 hover:bg-white/75 w-2 sm:w-3'
+                    }`}
+                    aria-label={`View image ${index + 1}`}
+                  />
+                ))}
+              </div>
+            )}
           </div>
           
-          {/* Thumbnail Gallery */}
-          <div className="space-y-4">
+          {/* Horizontal Thumbnail Gallery */}
+          <div className="flex gap-2 sm:gap-3 overflow-x-auto scrollbar-hide pb-2">
             {salonImages.slice(1, 4).map((image, index) => (
               <div 
                 key={index} 
@@ -236,15 +238,15 @@ export default function SalonProfile() {
           </div>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6 lg:gap-8">
           {/* Main Content */}
-          <div className="lg:col-span-2 space-y-8">
+          <div className="lg:col-span-2 space-y-4 sm:space-y-6 lg:space-y-8">
             {/* Basic Info */}
-            <div className="bg-white rounded-xl shadow-lg p-6">
-              <div className="flex justify-between items-start mb-4">
-                <div>
-                  <h1 className="text-3xl font-bold text-gray-900 mb-2">{salon.name}</h1>
-                  <div className="flex items-center space-x-4 text-sm text-gray-600">
+            <div className="bg-white rounded-xl shadow-lg p-3 sm:p-4 lg:p-6">
+              <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start gap-3 sm:gap-4 mb-3 sm:mb-4">
+                <div className="flex-1">
+                  <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold text-gray-900 mb-2">{salon.name}</h1>
+                  <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4 text-xs sm:text-sm text-gray-600">
                     <div className="flex items-center">
                       <StarIcon className="h-5 w-5 text-yellow-400 mr-1" />
                       <span className="font-medium">{salon.rating}</span>
@@ -264,15 +266,15 @@ export default function SalonProfile() {
                 </Link>
               </div>
               
-              <p className="text-gray-700 leading-relaxed">{salon.description}</p>
+              <p className="text-xs sm:text-sm lg:text-base text-gray-700 leading-relaxed">{salon.description}</p>
               
-              <div className="mt-6 flex items-center space-x-6">
-                <div className="flex items-center text-gray-600">
-                  <PhoneIcon className="h-5 w-5 mr-2" />
+              <div className="mt-4 sm:mt-6 flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-6">
+                <div className="flex items-center text-gray-600 text-xs sm:text-sm">
+                  <PhoneIcon className="h-4 w-4 sm:h-5 sm:w-5 mr-2" />
                   <span>{salon.phone}</span>
                 </div>
-                <div className="flex items-center text-gray-600">
-                  <ClockIcon className="h-5 w-5 mr-2" />
+                <div className="flex items-center text-gray-600 text-xs sm:text-sm">
+                  <ClockIcon className="h-4 w-4 sm:h-5 sm:w-5 mr-2" />
                   <span>Open Today: {
                     (() => {
                       const today = new Date().toLocaleDateString('en-US', { weekday: 'long' }).toLowerCase();
@@ -294,29 +296,84 @@ export default function SalonProfile() {
             </div>
 
             {/* Services */}
-            <div className="bg-white rounded-xl shadow-lg p-6">
-              <h2 className="text-2xl font-bold text-gray-900 mb-6">Services & Pricing</h2>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {salon.services?.map((service) => (
-                  <div key={service.id} className="border border-gray-200 rounded-lg p-4">
+            <div className="bg-white rounded-xl shadow-lg p-3 sm:p-4 lg:p-6">
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4 mb-4 sm:mb-6">
+                <h2 className="text-lg sm:text-xl lg:text-2xl font-bold text-gray-900">Services & Pricing</h2>
+                
+                {/* Gender Filter Tabs */}
+                <div className="flex items-center gap-1.5 sm:gap-2 overflow-x-auto scrollbar-hide pb-2 sm:pb-0">
+                  <button
+                    onClick={() => setGenderFilter('ALL')}
+                    className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                      genderFilter === 'ALL'
+                        ? 'bg-gray-700 text-white'
+                        : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                    }`}
+                  >
+                    All Services
+                  </button>
+                  <button
+                    onClick={() => setGenderFilter('MALE')}
+                    className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                      genderFilter === 'MALE'
+                        ? 'bg-blue-600 text-white'
+                        : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                    }`}
+                  >
+                    Men
+                  </button>
+                  <button
+                    onClick={() => setGenderFilter('FEMALE')}
+                    className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                      genderFilter === 'FEMALE'
+                        ? 'bg-pink-600 text-white'
+                        : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                    }`}
+                  >
+                    Women
+                  </button>
+                </div>
+              </div>
+              
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
+                {salon.services?.filter((service) => {
+                  // Filter by gender
+                  if (genderFilter === 'ALL') return true;
+                  const serviceGender = service.targetgender?.[0] || service.targetGender?.[0];
+                  return serviceGender === genderFilter || serviceGender === 'ALL';
+                }).map((service) => (
+                  <div key={service.id} className="border border-gray-200 rounded-lg p-3 sm:p-3 sm:p-4">
                     {service.image_url && (
                       <img
                         src={service.image_url}
                         alt={service.name}
-                        className="w-full h-32 object-cover rounded-lg mb-3"
+                        className="w-full h-24 sm:h-32 object-cover rounded-lg mb-2 sm:mb-3"
                         onError={(e) => { 
                           e.target.style.display = 'none'; 
                         }}
                       />
                     )}
-                    <div className="flex justify-between items-start mb-2">
-                      <h3 className="font-semibold text-gray-900">{service.name}</h3>
-                      <span className="text-lg font-bold text-teal-600">₹{service.price}</span>
+                    <div className="flex justify-between items-start mb-1.5 sm:mb-2">
+                      <div className="flex-1">
+                        <h3 className="text-sm sm:text-base font-semibold text-gray-900 mb-1">{service.name}</h3>
+                        {/* Gender Badge */}
+                        {(() => {
+                          const gender = service.targetgender?.[0] || service.targetGender?.[0] || 'ALL';
+                          if (gender === 'MALE') {
+                            return <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-50 text-blue-700">Men</span>;
+                          } else if (gender === 'FEMALE') {
+                            return <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-pink-50 text-pink-700">Women</span>;
+                          } else {
+                            return <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-700">Unisex</span>;
+                          }
+                        })()}
+                      </div>
+                      <span className="text-base sm:text-lg font-bold text-teal-600">₹{service.price}</span>
                     </div>
-                    <p className="text-sm text-gray-600 mb-3">{service.duration}</p>
+                    <p className="text-xs sm:text-sm text-gray-600 mb-2 sm:mb-3">{service.duration}</p>
                     <Link
                       href={`/salon/${salonId}/book?service=${service.id}`}
-                      className="w-full py-2 border border-teal-600 text-teal-600 rounded-lg hover:bg-teal-50 transition-colors inline-block text-center"
+                      className="w-full py-2 border border-teal-600 text-teal-600 rounded-lg hover:bg-teal-50 transition-colors inline-block text-center text-xs sm:text-sm font-medium"
                     >
                       Book Now
                     </Link>
@@ -357,9 +414,9 @@ export default function SalonProfile() {
             )}
 
             {/* Staff */}
-            <div className="bg-white rounded-xl shadow-lg p-6">
-              <h2 className="text-2xl font-bold text-gray-900 mb-6">Our Team</h2>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            <div className="bg-white rounded-xl shadow-lg p-3 sm:p-4 lg:p-6">
+              <h2 className="text-lg sm:text-xl lg:text-2xl font-bold text-gray-900 mb-4 sm:mb-6">Our Team</h2>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
                 {salon.staff?.map((staff) => (
                   <div key={staff.id} className="text-center">
                     <img
@@ -381,7 +438,7 @@ export default function SalonProfile() {
                       <span className="text-sm">{staff.rating}</span>
                     </div>
                     <Link
-                      href={`/salon/${salonId}/book?staff=${staff.id}`}
+                      href={`/salon/${salonId}/book`}
                       className="mt-3 px-4 py-2 text-sm border border-teal-600 text-teal-600 rounded-lg hover:bg-teal-50 transition-colors inline-block text-center"
                     >
                       Book with {staff.name.split(' ')[0]}
@@ -390,21 +447,14 @@ export default function SalonProfile() {
                 ))}
               </div>
             </div>
-
-            {/* Reviews */}
-            <ReviewSection 
-              reviews={salonReviews}
-              averageRating={salon.rating}
-              totalReviews={salon.reviewCount}
-            />
           </div>
 
           {/* Sidebar */}
-          <div className="space-y-6">
+          <div className="space-y-4 sm:space-y-6">
             {/* Quick Info */}
-            <div className="bg-white rounded-xl shadow-lg p-6">
-              <h3 className="text-lg font-semibold text-gray-900 mb-4">Quick Info</h3>
-              <div className="space-y-3">
+            <div className="bg-white rounded-xl shadow-lg p-3 sm:p-4 lg:p-3 sm:p-4 lg:p-6">
+              <h3 className="text-base sm:text-lg font-semibold text-gray-900 mb-3 sm:mb-4">Quick Info</h3>
+              <div className="space-y-2 sm:space-y-3 text-xs sm:text-sm">
                 <div className="flex justify-between">
                   <span className="text-gray-600">Rating</span>
                   <div className="flex items-center">
@@ -424,9 +474,9 @@ export default function SalonProfile() {
             </div>
 
             {/* Opening Hours */}
-            <div className="bg-white rounded-xl shadow-lg p-6">
-              <h3 className="text-lg font-semibold text-gray-900 mb-4">Opening Hours</h3>
-              <div className="space-y-2">
+            <div className="bg-white rounded-xl shadow-lg p-3 sm:p-4 lg:p-6">
+              <h3 className="text-base sm:text-lg font-semibold text-gray-900 mb-3 sm:mb-4">Opening Hours</h3>
+              <div className="space-y-1.5 sm:space-y-2 text-xs sm:text-sm">
                 {daysOfWeek.map((day) => {
                   const daySchedule = salon.openingHours?.[day];
                   let displayTime = 'Closed';
@@ -452,19 +502,19 @@ export default function SalonProfile() {
             </div>
 
             {/* Contact */}
-            <div className="bg-white rounded-xl shadow-lg p-6">
-              <h3 className="text-lg font-semibold text-gray-900 mb-4">Contact</h3>
-              <div className="space-y-3">
+            <div className="bg-white rounded-xl shadow-lg p-3 sm:p-4 lg:p-6">
+              <h3 className="text-base sm:text-lg font-semibold text-gray-900 mb-3 sm:mb-4">Contact</h3>
+              <div className="space-y-2 sm:space-y-2 sm:space-y-3">
                 <div className="flex items-start">
-                  <MapPinIcon className="h-5 w-5 text-gray-400 mr-3 mt-0.5 flex-shrink-0" />
-                  <span className="text-sm text-gray-600">{salon.address}</span>
+                  <MapPinIcon className="h-4 w-4 sm:h-5 sm:w-5 text-gray-400 mr-2 sm:mr-3 mt-0.5 flex-shrink-0" />
+                  <span className="text-xs sm:text-sm text-gray-600">{salon.address}</span>
                 </div>
                 <div className="flex items-center">
-                  <PhoneIcon className="h-5 w-5 text-gray-400 mr-3" />
-                  <span className="text-sm text-gray-600">{salon.phone}</span>
+                  <PhoneIcon className="h-4 w-4 sm:h-5 sm:w-5 text-gray-400 mr-2 sm:mr-3" />
+                  <span className="text-xs sm:text-sm text-gray-600">{salon.phone}</span>
                 </div>
               </div>
-              <button className="w-full mt-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors">
+              <button className="w-full mt-3 sm:mt-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors text-xs sm:text-sm font-medium">
                 Get Directions
               </button>
             </div>

@@ -7,6 +7,17 @@ import { logger } from '@/lib/logger';
 /**
  * Client-side auth helpers for Supabase
  * These are used in client components like forms
+ * 
+ * IDENTITY MODEL:
+ * - Email = Unique identifier (enforced by Supabase auth.users)
+ * - Phone = Contact metadata (NOT unique, can be shared by multiple users)
+ * - user_id = Supabase auth.users.id (primary key for Customer records)
+ * 
+ * Design Rationale:
+ * - Email OTP is the only authentication method (SMS OTP not yet implemented)
+ * - Phone is stored for booking notifications, not authentication
+ * - Multiple users can share the same phone (family/business scenarios)
+ * - Phone/name are updated on each login to keep contact info current
  */
 
 const supabase = createClient();
@@ -20,6 +31,16 @@ export async function signUpWithEmail({ email, password, name, phone, tempAccoun
     return { 
       success: false, 
       error: 'Password must be at least 6 characters long' 
+    };
+  }
+
+  // Check if email or phone already exists
+  const existingCheck = await checkExistingCustomer({ email, phone });
+  if (existingCheck.exists) {
+    return {
+      success: false,
+      error: existingCheck.message,
+      code: existingCheck.conflict === 'email' ? 'EMAIL_EXISTS' : 'PHONE_EXISTS'
     };
   }
 
@@ -49,13 +70,18 @@ export async function signUpWithEmail({ email, password, name, phone, tempAccoun
   // If email confirmation is disabled, session exists immediately - create Customer now (client-side)
   if (data.session && data.user) {
     logger.debug('✅ Session created immediately - creating Customer record (client)...');
-    const customerResult = await ensureCustomerRecord({ name, email, phone });
+        const customerResult = await ensureCustomerRecord({ name, email, phone });
     if (!customerResult?.success) {
       logger.error('❌ Failed to create Customer record after signup', customerResult?.error);
+      
+      // If phone/email conflict, sign out and fail
+      if (customerResult?.error === 'ACCOUNT_EXISTS') {
+        await supabase.auth.signOut();
+        return { success: false, error: 'Phone/email already registered' };
+      }
     } else {
       logger.debug('✅ Customer record created:', customerResult.data);
     }
-
     // Stamp role=customer on the server (service-key admin API)
     try {
       await fetch('/api/auth/stamp-role', { method: 'POST' });
@@ -314,6 +340,194 @@ export async function signInWithPhone({ phone, password }) {
 }
 
 /**
+ * Check if email already exists in Customer table
+ * 
+ * NOTE: Phone is NOT checked for duplicates - it's contact info only.
+ * Multiple users can share the same phone number (family/business use case).
+ * Email is the sole unique identifier via Supabase auth.users.
+ */
+export async function checkExistingCustomer({ email, phone }) {
+  try {
+    const supa = createClient();
+
+    // Check email only - this is the unique identifier
+    if (email) {
+      const { data: emailMatch, error: emailErr } = await supa
+        .from('Customer')
+        .select('id, email, phone, user_id')
+        .eq('email', email)
+        .maybeSingle();
+      
+      if (emailErr) {
+        logger.error('Error checking email:', emailErr);
+      }
+      
+      if (emailMatch) {
+        return {
+          exists: true,
+          conflict: 'email',
+          message: 'This email is already registered. Please sign in instead.',
+          data: emailMatch
+        };
+      }
+    }
+
+    // Phone is NOT checked - allowing duplicate phones for shared family/business numbers
+    // Phone is stored as contact metadata, not an authentication identifier
+
+    return { exists: false };
+  } catch (e) {
+    logger.error('checkExistingCustomer error:', e);
+    return { exists: false, error: e.message };
+  }
+}
+
+/**
+ * Send OTP for passwordless authentication
+ * Supports both email and phone verification
+ * For anonymous users: links OTP identity to existing session
+ * For new users: creates account without password
+ */
+export async function sendOTP({ email, phone, name }) {
+  try {
+    const supa = createClient();
+    const { data: { user: currentUser } } = await supa.auth.getUser();
+    const isAnonymous = currentUser && currentUser.user_metadata?.anonymous === true;
+
+    // Determine which method to use
+    const method = email ? 'email' : phone ? 'sms' : null;
+    if (!method) {
+      return { success: false, error: 'Email or phone is required' };
+    }
+
+    // For new users (not logged in), check if email/phone already exists
+    if (!currentUser || isAnonymous) {
+      const existingCheck = await checkExistingCustomer({ email, phone });
+      
+      if (existingCheck.exists) {
+        return {
+          success: false,
+          error: existingCheck.message,
+          code: existingCheck.conflict === 'email' ? 'EMAIL_EXISTS' : 'PHONE_EXISTS',
+          conflict: existingCheck.conflict
+        };
+      }
+    }
+
+    const identifier = email || phone;
+    
+    // For anonymous users, use linkIdentity to upgrade session
+    // For new/existing users, use signInWithOtp
+    const options = {
+      shouldCreateUser: !isAnonymous, // Only create new user if not anonymous
+      data: {
+        name: name || 'Customer',
+        phone: phone || undefined,
+        verified_via: 'otp',
+        temp_account: false,
+        anonymous: false
+      }
+    };
+
+    if (isAnonymous) {
+      // Anonymous user - link OTP identity to existing session
+      logger.debug('🔗 Linking OTP identity to anonymous session');
+      options.shouldCreateUser = false;
+    }
+
+    const otpParams = email 
+      ? { email, options }
+      : { phone, options };
+
+    const { data, error } = await supa.auth.signInWithOtp(otpParams);
+
+    if (error) {
+      logger.error('❌ sendOTP error:', error);
+      if (error.message?.includes('already registered') || error.status === 422) {
+        return { 
+          success: false, 
+          error: 'This email/phone is already registered. Please sign in instead.',
+          code: 'already_registered'
+        };
+      }
+      return { success: false, error: error.message };
+    }
+
+    logger.debug('✅ OTP sent successfully');
+    return { success: true, data };
+  } catch (e) {
+    logger.error('sendOTP exception:', e);
+    return { success: false, error: e.message };
+  }
+}
+
+/**
+ * Verify OTP code
+ * Automatically links to anonymous session if applicable
+ */
+export async function verifyOTP({ email, phone, token }) {
+  try {
+    const supa = createClient();
+    
+    const verifyParams = email
+      ? { email, token, type: 'email' }
+      : { phone, token, type: 'sms' };
+
+    const { data, error } = await supa.auth.verifyOtp(verifyParams);
+
+    if (error) {
+      logger.error('❌ verifyOTP error:', error);
+      return { 
+        success: false, 
+        error: error.message === 'Token has expired or is invalid'
+          ? 'Invalid or expired code. Please request a new one.'
+          : 'Verification failed. Please try again.'
+      };
+    }
+
+    // After successful verification, ensure Customer record exists
+    if (data.user) {
+      logger.debug('✅ OTP verified, ensuring Customer record');
+      const customerResult = await ensureCustomerRecord({
+        email: data.user.email,
+        phone: data.user.phone,
+        name: data.user.user_metadata?.name || 'Customer'
+      });
+      
+      // Handle Customer record creation/linking
+      if (!customerResult.success) {
+        // ACCOUNT_EXISTS means user already has a Customer record - that's OK for sign-in
+        if (customerResult.error === 'ACCOUNT_EXISTS') {
+          logger.debug('✅ Customer account already exists (sign-in via OTP)');
+        } else {
+          // Real error - log and return failure
+          logger.error('❌ Failed to create/update Customer after OTP verification:', customerResult.error);
+          return { 
+            success: false, 
+            error: customerResult.error || 'CUSTOMER_RECORD_FAILED',
+            message: customerResult.message || 'Failed to create customer record'
+          };
+        }
+      } else {
+        logger.debug('✅ Customer record ensured:', customerResult.data?.id);
+      }
+
+      // Stamp role=customer
+      try {
+        await fetch('/api/auth/stamp-role', { method: 'POST' });
+      } catch (e) {
+        logger.warn('Could not stamp customer role (non-fatal):', e?.message || e);
+      }
+    }
+
+    return { success: true, data, user: data.user };
+  } catch (e) {
+    logger.error('verifyOTP exception:', e);
+    return { success: false, error: e.message };
+  }
+}
+
+/**
  * Sign out current user
  */
 export async function signOut() {
@@ -404,22 +618,57 @@ export async function ensureCustomerRecord(overrides = {}) {
       window.__ensuringCustomer = true;
     }
 
+    // Get phone and email data FIRST before any lookups
+    const rawPhone = overrides.phone || user.user_metadata?.phone || null;
+    const phoneNorm = normalizePhone(rawPhone);
+    const emailCandidate = overrides.email || user.email || null;
+
     // 1. Resolve existing Customer by user_id
     const { data: existingByUser } = await supa
       .from('Customer')
       .select('*')
       .eq('user_id', user.id)
       .maybeSingle();
+    
     if (existingByUser) {
+      // Update phone/name on each login to keep contact info current
+      const shouldUpdate = 
+        (rawPhone && rawPhone !== existingByUser.phone) ||
+        (overrides.name && overrides.name !== existingByUser.name);
+      
+      if (shouldUpdate) {
+        logger.debug('📱 Updating customer contact info:', { 
+          id: existingByUser.id,
+          oldPhone: existingByUser.phone,
+          newPhone: rawPhone,
+          oldName: existingByUser.name,
+          newName: overrides.name
+        });
+        
+        const { data: updated, error: updateErr } = await supa
+          .from('Customer')
+          .update({
+            phone: rawPhone || existingByUser.phone,
+            phone_normalized: phoneNorm || existingByUser.phone_normalized,
+            name: overrides.name || existingByUser.name
+          })
+          .eq('id', existingByUser.id)
+          .select('*')
+          .maybeSingle();
+        
+        if (updated) {
+          if (typeof window !== 'undefined') window.__ensuringCustomer = false;
+          return { success: true, data: updated, error: null, updated: true };
+        } else {
+          logger.warn('⚠️ Failed to update contact info:', updateErr);
+        }
+      }
+      
       if (typeof window !== 'undefined') window.__ensuringCustomer = false;
       return { success: true, data: existingByUser, error: null };
     }
 
     // 2. Check if phone/email already exists (claimed or unclaimed)
-    const rawPhone = overrides.phone || user.user_metadata?.phone || null;
-    const phoneNorm = normalizePhone(rawPhone);
-    const emailCandidate = overrides.email || user.email || null;
-
     logger.debug('🔍 Looking for existing Customer to claim or detect conflict:', { phoneNorm, emailCandidate });
 
     // CRITICAL: For anonymous users, check if email exists in auth.users first!
@@ -481,39 +730,11 @@ export async function ensureCustomerRecord(overrides = {}) {
       }
     }
     
-    // Check phone (if provided and email didn't find a match)
-    let existingByPhone = null;
-    if (phoneNorm && !existingByEmail) {
-      const { data: phoneMatch, error: phoneErr } = await supa
-        .from('Customer')
-        .select('*')
-        .eq('phone_normalized', phoneNorm)
-        .maybeSingle();
-      if (phoneErr) logger.error('❌ Phone lookup failed:', phoneErr);
-      if (phoneMatch) {
-        existingByPhone = phoneMatch;
-        // If belongs to different user AND we're anonymous, this is a conflict - need to sign in instead
-        if (phoneMatch.user_id && phoneMatch.user_id !== user.id) {
-          if (isAnonymous) {
-            logger.warn('⚠️ Anonymous user trying to use phone from existing account - need to sign in');
-            if (typeof window !== 'undefined') window.__ensuringCustomer = false;
-            return { 
-              success: false, 
-              data: null, 
-              error: 'EXISTING_ACCOUNT_SIGNIN_REQUIRED',
-              message: 'This phone number is already registered. Please sign in to link your bookings.',
-              existingUserId: phoneMatch.user_id
-            };
-          }
-          logger.warn('⚠️ Phone already claimed by another user');
-          if (typeof window !== 'undefined') window.__ensuringCustomer = false;
-          return { success: false, data: null, error: 'ACCOUNT_EXISTS' };
-        }
-        logger.debug('✅ Found Customer by phone:', phoneMatch.id, phoneMatch.user_id ? '(claimed)' : '(guest)');
-      }
-    }
+    // Phone lookup removed - phone is NOT unique identifier
+    // Multiple users can have same phone (shared family/business numbers)
+    // Email via Supabase auth is the sole unique identifier
     
-    const guestMatch = existingByEmail || existingByPhone;
+    const guestMatch = existingByEmail;
     
     if (!guestMatch) {
       logger.debug('ℹ️ No existing Customer found, will create new record');

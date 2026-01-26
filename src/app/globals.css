@@ -90,11 +90,11 @@ html {
   scroll-behavior: smooth;
 }
 
-/* Global placeholder color override - always use black/dark gray */
+/* Global placeholder color - light gray for clear differentiation from input values */
 input::placeholder,
 textarea::placeholder,
 select::placeholder {
-  color: #1f2937 !important;
+  color: #9ca3af !important;
   opacity: 1 !important;
 }
 

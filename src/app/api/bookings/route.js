@@ -205,21 +205,29 @@ export async function POST(request) {
       }
     }
 
-    const { data: booking, error: rpcError } = await supabase.rpc('book_slot', {
+    const rpcParams = {
       p_shop_id: bookingData.shop_id,
       p_service_id: bookingData.service_id,
-      p_staff_id: bookingData.staff_id || null,
-      p_customer_id: resolvedCustomerId,
       p_customer_name: bookingData.customer_name,
-      p_customer_email: customerEmail,
       p_customer_phone: normalizedPhone,
       p_date: bookingData.booking_date,
-      p_time: bookingData.booking_time,
+      p_time: bookingData.booking_time.includes(':') && bookingData.booking_time.split(':').length === 2 
+        ? `${bookingData.booking_time}:00` 
+        : bookingData.booking_time,
       p_duration_min: service.duration,
+      p_staff_id: bookingData.staff_id || null,
+      p_customer_id: resolvedCustomerId,
+      p_customer_email: customerEmail,
       p_customer_notes: bookingData.customer_notes || bookingData.notes || null,
-    });
+    };
+
+    console.log('🔍 RPC PARAMS:', JSON.stringify(rpcParams, null, 2));
+    console.log('🔍 PARAM TYPES:', Object.entries(rpcParams).map(([k, v]) => `${k}=${typeof v}`).join(', '));
+
+    const { data: booking, error: rpcError } = await supabase.rpc('book_slot', rpcParams);
 
     if (rpcError) {
+      console.error('❌ RPC ERROR:', JSON.stringify(rpcError, null, 2));
       logger.error('RPC book_slot error:', rpcError);
       const msg = rpcError.message || '';
       if (msg.includes('SLOT_CONFLICT')) {

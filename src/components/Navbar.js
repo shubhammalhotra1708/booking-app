@@ -3,15 +3,13 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { User, Menu, X, Search, MapPin, ChevronDown } from 'lucide-react';
-import { getUserLocation, setUserLocation } from '@/utils/searchUtils';
+import { User, Menu, X, Search, ChevronDown } from 'lucide-react';
 import { getCurrentUser, signOut, ensureCustomerRecord } from '@/lib/auth-helpers';
 
 export default function Navbar({ showCompactSearch = false }) {
   const router = useRouter();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [showScrollSearch, setShowScrollSearch] = useState(false);
-  const [location, setLocation] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
   const [user, setUser] = useState(null);
   const [customer, setCustomer] = useState(null);
@@ -26,12 +24,6 @@ export default function Navbar({ showCompactSearch = false }) {
       const scrolled = window.scrollY > 500;
       setShowScrollSearch(scrolled);
     };
-
-    // Load saved location
-    const savedLocation = getUserLocation();
-    if (savedLocation && savedLocation !== 'Current Location') {
-      setLocation(savedLocation);
-    }
 
     // Check auth status
     checkAuth();
@@ -53,17 +45,9 @@ export default function Navbar({ showCompactSearch = false }) {
   const handleSearch = () => {
     if (!searchQuery.trim()) return;
     
-    // Save location if provided
-    if (location.trim()) {
-      setUserLocation(location.trim());
-    }
-    
-    // Navigate to search page with parameters
+    // Navigate to search page with query parameter
     const params = new URLSearchParams();
     params.set('q', searchQuery.trim());
-    if (location.trim()) {
-      params.set('location', location.trim());
-    }
     
     router.push(`/search?${params.toString()}`);
   };
@@ -102,7 +86,7 @@ export default function Navbar({ showCompactSearch = false }) {
                 showScrollSearch || showCompactSearch ? 'text-sky-500' : 'text-gray-800'
               }`}
             >
-              BookEz
+              EzBook
             </Link>
           </div>
 
@@ -111,19 +95,6 @@ export default function Navbar({ showCompactSearch = false }) {
             <div className="hidden md:flex flex-1 max-w-2xl mx-8">
               <div className="relative w-full flex items-center">
                 <div className="flex w-full h-10 rounded-xl overflow-hidden" style={{ border: '1px solid #e5e7eb', background: 'white', boxShadow: '0 2px 8px rgba(0, 0, 0, 0.08)' }}>
-                  {/* Location Input */}
-                  <div className="flex-1 flex items-center border-r border-gray-200 px-3">
-                    <MapPin className="h-4 w-4 text-gray-400 flex-shrink-0" />
-                    <input
-                      type="text"
-                      placeholder="Near you"
-                      value={location}
-                      onChange={(e) => setLocation(e.target.value)}
-                      onKeyPress={handleKeyPress}
-                      className="flex-1 ml-2 text-sm border-0 focus:ring-0 focus:outline-none text-gray-700 bg-transparent"
-                    />
-                  </div>
-                  
                   {/* Search Input */}
                   <div className="flex-1 flex items-center px-3">
                     <Search className="h-4 w-4 text-gray-400 flex-shrink-0" />
@@ -161,26 +132,6 @@ export default function Navbar({ showCompactSearch = false }) {
               }`}
             >
               My Bookings
-            </Link>
-            <Link 
-              href="/business" 
-              className={`text-sm font-medium transition-colors ${
-                showScrollSearch || showCompactSearch 
-                  ? 'text-gray-700 hover:text-gray-900' 
-                  : 'text-gray-800 hover:text-gray-900'
-              }`}
-            >
-              For Business
-            </Link>
-            <Link 
-              href="/help" 
-              className={`text-sm font-medium transition-colors ${
-                showScrollSearch || showCompactSearch 
-                  ? 'text-gray-700 hover:text-gray-900' 
-                  : 'text-gray-800 hover:text-gray-900'
-              }`}
-            >
-              Help
             </Link>
             
             {/* User Account Element */}
@@ -294,22 +245,7 @@ export default function Navbar({ showCompactSearch = false }) {
         {(showScrollSearch || showCompactSearch) && (
           <div className="md:hidden pb-6 pt-2">
             <div className="space-y-3">
-              {/* Location Input */}
-              <div className="relative">
-                <div className="flex items-center h-10 rounded-lg px-3" style={{ border: '1px solid #e5e7eb', background: 'white', boxShadow: '0 1px 3px rgba(0, 0, 0, 0.06)' }}>
-                  <MapPin className="h-4 w-4 text-gray-400 flex-shrink-0" />
-                  <input
-                    type="text"
-                    placeholder="Location"
-                    value={location}
-                    onChange={(e) => setLocation(e.target.value)}
-                    onKeyPress={handleKeyPress}
-                    className="flex-1 ml-2 text-sm border-0 focus:ring-0 focus:outline-none text-gray-700 bg-transparent"
-                  />
-                </div>
-              </div>
-              
-              {/* Service Input with Button */}
+              {/* Search Input with Button */}
               <div className="relative flex items-center space-x-3">
                 <div className="flex-1 flex items-center h-10 rounded-lg px-3" style={{ border: '1px solid #e5e7eb', background: 'white', boxShadow: '0 1px 3px rgba(0, 0, 0, 0.06)' }}>
                   <Search className="h-4 w-4 text-gray-400 flex-shrink-0" />
@@ -343,24 +279,44 @@ export default function Navbar({ showCompactSearch = false }) {
       {isMenuOpen && (
         <div className="md:hidden animate-slide-up" style={{ background: 'var(--background)', borderTop: '1px solid var(--border-light)' }}>
           <div className="px-6 pt-4 pb-6 space-y-2">
-            <Link
-              href="/business"
-              className="block px-4 py-3 text-body hover:text-gray-900 transition-colors rounded-lg hover:bg-gray-50"
-            >
-              For Business
-            </Link>
-            <Link
-              href="/help"
-              className="block px-4 py-3 text-body hover:text-gray-900 transition-colors rounded-lg hover:bg-gray-50"
-            >
-              Help
-            </Link>
-            <Link
-              href="/login"
-              className="block px-4 py-3 text-sm font-medium text-gray-700 hover:text-gray-900 transition-colors rounded-lg hover:bg-gray-50 text-center"
-            >
-              👤 Account
-            </Link>
+            {user ? (
+              <>
+                <Link
+                  href="/my-bookings/profile"
+                  className="block px-4 py-3 text-body hover:text-gray-900 transition-colors rounded-lg hover:bg-gray-50"
+                  onClick={() => setIsMenuOpen(false)}
+                >
+                  My Profile
+                </Link>
+                <Link
+                  href="/my-bookings"
+                  className="block px-4 py-3 text-body hover:text-gray-900 transition-colors rounded-lg hover:bg-gray-50"
+                  onClick={() => setIsMenuOpen(false)}
+                >
+                  My Bookings
+                </Link>
+                <button
+                  onClick={async () => {
+                    await signOut();
+                    setUser(null);
+                    setCustomer(null);
+                    setIsMenuOpen(false);
+                    router.push('/');
+                  }}
+                  className="block w-full text-left px-4 py-3 text-body hover:text-gray-900 transition-colors rounded-lg hover:bg-gray-50"
+                >
+                  Sign Out
+                </button>
+              </>
+            ) : (
+              <Link
+                href="/client-dashboard"
+                className="block px-4 py-3 text-sm font-medium text-gray-700 hover:text-gray-900 transition-colors rounded-lg hover:bg-gray-50 text-center"
+                onClick={() => setIsMenuOpen(false)}
+              >
+                👤 Sign In
+              </Link>
+            )}
           </div>
         </div>
       )}

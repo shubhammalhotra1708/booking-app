@@ -10,6 +10,7 @@ export async function GET(request) {
   try {
     const { searchParams } = new URL(request.url);
     const shopId = searchParams.get('shop_id');
+    const includeStaffCount = searchParams.get('include_staff_count') === 'true';
     
     const supabase = await createClient();
     
@@ -32,9 +33,35 @@ export async function GET(request) {
         { status: 500 }
       );
     }
+
+    // If requested, add staff count for each service
+    let servicesWithStaffCount = data || [];
+    if (includeStaffCount && data && data.length > 0) {
+      const serviceIds = data.map(s => s.id);
+      
+      // Get staff count for each service from StaffService table
+      const { data: staffMappings, error: mappingError } = await supabase
+        .from('StaffService')
+        .select('serviceid, staffid')
+        .in('serviceid', serviceIds);
+
+      if (!mappingError && staffMappings) {
+        // Count staff per service
+        const staffCountMap = staffMappings.reduce((acc, mapping) => {
+          acc[mapping.serviceid] = (acc[mapping.serviceid] || 0) + 1;
+          return acc;
+        }, {});
+
+        // Add staff_count to each service
+        servicesWithStaffCount = data.map(service => ({
+          ...service,
+          staff_count: staffCountMap[service.id] || 0
+        }));
+      }
+    }
     
     return NextResponse.json(
-      createSuccessResponse(data || [], 'Services retrieved successfully'),
+      createSuccessResponse(servicesWithStaffCount, 'Services retrieved successfully'),
       {
         headers: {
           'Cache-Control': 'public, s-maxage=300, stale-while-revalidate=60',

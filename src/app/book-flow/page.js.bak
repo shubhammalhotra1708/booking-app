@@ -6,8 +6,7 @@ import Link from 'next/link';
 import { ArrowLeft, ArrowRight, Clock, User, Calendar, Check, MapPin } from 'lucide-react';
 import ErrorCodeAlert from '@/components/ErrorCodeAlert';
 import TempAccountBanner from '@/components/TempAccountBanner';
-import OTPModal from '@/components/OTPModal';
-import { getCurrentUser, ensureCustomerRecord, signInAnonymously, sendOTP, verifyOTP } from '@/lib/auth-helpers';
+import { getCurrentUser, ensureCustomerRecord, signInAnonymously } from '@/lib/auth-helpers';
 import { logger } from '@/lib/logger';
 import { getTodayIST } from '@/utils/timezone';
 
@@ -16,9 +15,8 @@ function BookingFlowInner() {
   const searchParams = useSearchParams();
   
   // Get URL parameters
-  const shopId = searchParams.get('shop_id') || searchParams.get('shopId');
+  const shopId = searchParams.get('shop_id');
   const serviceId = searchParams.get('service_id');
-  const preselectedStaffId = searchParams.get('staffId'); // For "Book with me" feature
   const step = parseInt(searchParams.get('step') || '1');
 
   // State
@@ -49,9 +47,6 @@ function BookingFlowInner() {
   const [bookingError, setBookingError] = useState('');
   const [bookingErrorCode, setBookingErrorCode] = useState(null); // backend error_code for structured messaging
   const [autoAdvancedToday, setAutoAdvancedToday] = useState(false);
-  const [showOTPModal, setShowOTPModal] = useState(false);
-  const [otpVerified, setOtpVerified] = useState(false);
-  const [otpSending, setOtpSending] = useState(false);
 
   // Refs to prevent duplicate API calls during React Strict Mode
   const fetchingShopService = useRef(false);
@@ -64,13 +59,16 @@ function BookingFlowInner() {
       
       // Prevent duplicate calls in Strict Mode
       if (fetchingShopService.current) {
+        console.log('⏭️ Skipping duplicate shop/service fetch (already in progress)');
         return;
       }
       
       const callId = `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+      console.log(`🔄 [${callId}] useEffect SHOP/SERVICE triggered - shopId: ${shopId}, serviceId: ${serviceId}`);
       
       fetchingShopService.current = true;
       try {
+        console.log(`🌐 [${callId}] Fetching shop and service data...`);
         
         const [shopRes, serviceRes] = await Promise.all([
           fetch(`/api/shops?shop_id=${shopId}`),
@@ -80,8 +78,10 @@ function BookingFlowInner() {
         const shopData = await shopRes.json();
         const serviceData = await serviceRes.json();
 
+        console.log(`📦 [${callId}] Raw API response - serviceData:`, JSON.stringify(serviceData, null, 2));
 
         if (shopData.success && shopData.data.length > 0) {
+          console.log(`✅ [${callId}] Shop loaded:`, shopData.data[0].name);
           setShop(shopData.data[0]);
         }
 
@@ -90,6 +90,7 @@ function BookingFlowInner() {
           const targetService = serviceData.data.find(s => s.id === parseInt(serviceId));
           
           if (targetService) {
+            console.log(`✅ [${callId}] Service loaded - ID: ${targetService.id}, Name: ${targetService.name}`);
             setService(targetService);
           } else {
             console.error(`❌ [${callId}] Service ID ${serviceId} not found in response. Using first service as fallback.`);
@@ -112,41 +113,37 @@ function BookingFlowInner() {
   useEffect(() => {
     // Prevent duplicate calls in Strict Mode
     if (fetchingAvailability.current) {
+      console.log('⏭️ Skipping duplicate availability fetch (already in progress)');
       return;
     }
     
     const callId = `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+    console.log(`📡 [${callId}] useEffect AVAILABILITY triggered - Date: ${selectedDate}, Step: ${step}, Service: ${serviceId}`);
     
     if (selectedDate && step === 1 && shopId && serviceId) {
+      console.log(`🌐 [${callId}] Calling fetchAvailableSlots...`);
       fetchingAvailability.current = true;
       fetchAvailableSlots(selectedDate, callId);
     } else {
+      console.log(`⏭️ [${callId}] Skipped - conditions not met`);
     }
   }, [selectedDate, step, shopId, serviceId]); // Trigger on any of these changes
 
   // Re-populate staff list when returning to step 2
   useEffect(() => {
     if (step === 2 && selectedSlot && (!staffForSlot || staffForSlot.length === 0)) {
+      console.log('🔄 Repopulating staff list for selected slot:', selectedSlot.time);
       // Find the slot in availableSlots to get fresh availableStaff data
       const freshSlot = availableSlots.find(s => s.time === selectedSlot.time);
       if (freshSlot && freshSlot.availableStaff) {
         setStaffForSlot(freshSlot.availableStaff);
+        console.log('✅ Restored staff list:', freshSlot.availableStaff.length, 'staff members');
       } else {
         console.warn('⚠️ Could not find fresh slot data, using slot.availableStaff');
         setStaffForSlot(selectedSlot.availableStaff || []);
       }
     }
   }, [step, selectedSlot, availableSlots]);
-
-  // Auto-select staff if staffId is in URL (Book with me feature)
-  useEffect(() => {
-    if (step === 2 && preselectedStaffId && staffForSlot.length > 0 && !selectedStaff) {
-      const staffToSelect = staffForSlot.find(s => s.id === parseInt(preselectedStaffId));
-      if (staffToSelect) {
-        setSelectedStaff(staffToSelect);
-      }
-    }
-  }, [step, preselectedStaffId, staffForSlot, selectedStaff]);
 
   // If user is already logged in, prefill step 3 with known info
   useEffect(() => {
@@ -275,20 +272,25 @@ function BookingFlowInner() {
   // Fetch available slots
   const fetchAvailableSlots = async (date, callId = 'manual') => {
     if (!date || !shopId || !serviceId) {
+      console.log(`⏭️ [${callId}] fetchAvailableSlots skipped - missing params`);
       fetchingAvailability.current = false; // Reset flag
       return;
     }
     
     setLoading(true);
     try {
+      console.log(`🌐 [${callId}] Fetching: /api/availability?shop_id=${shopId}&service_id=${serviceId}&date=${date}`);
       const response = await fetch(
         `/api/availability?shop_id=${shopId}&service_id=${serviceId}&date=${date}`
       );
       const data = await response.json();
+      console.log(`📦 [${callId}] API Response:`, data);
       
       if (data.success && data.data?.availableSlots) {
+        console.log(`✅ [${callId}] Setting ${data.data.availableSlots.length} slots`);
         setAvailableSlots(data.data.availableSlots);
       } else {
+        console.log(`⚠️ [${callId}] No slots available - ${data.message}`);
         setAvailableSlots([]);
       }
     } catch (err) {
@@ -297,12 +299,14 @@ function BookingFlowInner() {
     } finally {
       setLoading(false);
       fetchingAvailability.current = false; // ✅ CRITICAL: Reset flag to allow future fetches
+      console.log(`🏁 [${callId}] fetchAvailableSlots COMPLETE`);
     }
   };
 
   // Handle date selection
   const handleDateSelect = (date) => {
     const callId = `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+    console.log(`📅 [${callId}] handleDateSelect CALLED - date: ${date}`);
     
     setSelectedDate(date);
     // Reset auto-advance whenever user changes date explicitly
@@ -312,6 +316,7 @@ function BookingFlowInner() {
     setAvailableSlots([]);
     setStaffForSlot([]);
     
+    console.log(`📅 [${callId}] handleDateSelect COMPLETE - date set to: ${date}, useEffect will trigger`);
     // Don't call fetchAvailableSlots here - let the useEffect handle it to avoid double calls
   };
 
@@ -354,53 +359,7 @@ function BookingFlowInner() {
     return Object.keys(errors).length === 0;
   };
 
-  // Handle OTP verification
-  const handleOTPVerify = async (token, isResend = false) => {
-    // If resend request
-    if (isResend) {
-      try {
-        setOtpSending(true);
-        const result = await sendOTP({
-          email: customerInfo.email,
-          phone: customerInfo.phone,
-          name: customerInfo.name
-        });
-        
-        if (!result.success) {
-          return { success: false, error: result.error };
-        }
-        
-        return { success: true };
-      } catch (error) {
-        return { success: false, error: 'Failed to resend code' };
-      } finally {
-        setOtpSending(false);
-      }
-    }
-
-    // Verify OTP
-    try {
-      const result = await verifyOTP({
-        email: customerInfo.email,
-        phone: customerInfo.phone, // Pass phone for customer record creation
-        token
-      });
-
-      if (result.success) {
-        setOtpVerified(true);
-        setShowOTPModal(false);
-        // Now proceed with booking
-        await proceedWithBooking();
-        return { success: true };
-      }
-
-      return { success: false, error: result.error };
-    } catch (error) {
-      return { success: false, error: 'Verification failed' };
-    }
-  };
-
-  // Initiate booking - checks if OTP verification needed
+  // Booking execution (final confirmation step)
   const handleBooking = async () => {
     if (!selectedDate || !selectedSlot) {
       return;
@@ -410,55 +369,6 @@ function BookingFlowInner() {
       return;
     }
 
-    // Check if user is already verified or logged in
-    const { user: authUser } = await getCurrentUser();
-    const isAnonymous = authUser?.user_metadata?.anonymous || 
-                       authUser?.app_metadata?.provider === 'anonymous' ||
-                       !authUser?.email;
-
-    // If anonymous/guest and not yet verified, show OTP modal
-    if (isAnonymous && !otpVerified && !loggedIn) {
-      try {
-        setOtpSending(true);
-        const result = await sendOTP({
-          email: customerInfo.email,
-          phone: customerInfo.phone,
-          name: customerInfo.name
-        });
-
-        if (!result.success) {
-          // Show specific error for email vs phone conflicts
-          if (result.code === 'EMAIL_EXISTS') {
-            setBookingError('This email is already registered. Please use a different email or sign in with your existing account.');
-            setBookingErrorCode('EMAIL_EXISTS');
-          } else if (result.code === 'PHONE_EXISTS') {
-            setBookingError('This phone number is already registered. Please use a different number or sign in with your existing account.');
-            setBookingErrorCode('PHONE_EXISTS');
-          } else {
-            setBookingError(result.error || 'Failed to send verification code. Please try again.');
-            setBookingErrorCode(null);
-          }
-          setOtpSending(false);
-          window.scrollTo({ top: 0, behavior: 'smooth' });
-          return;
-        }
-
-        setOtpSending(false);
-        setShowOTPModal(true);
-      } catch (error) {
-        setBookingError('Failed to send verification code. Please try again.');
-        setOtpSending(false);
-        window.scrollTo({ top: 0, behavior: 'smooth' });
-      }
-      return;
-    }
-
-    // User is logged in or verified, proceed directly
-    await proceedWithBooking();
-  };
-
-  // Actual booking creation logic
-  const proceedWithBooking = async () => {
     setLoading(true);
     setBookingError('');
     setBookingErrorCode(null);
@@ -745,15 +655,11 @@ function BookingFlowInner() {
               setBookingError(data.error || 'Booking failed. Please try again.');
             }
         }
-        // Scroll to top to show error message
-        window.scrollTo({ top: 0, behavior: 'smooth' });
       }
     } catch (error) {
       console.error('Booking error:', error);
       setBookingError('Booking failed: Network error');
       setBookingErrorCode('NETWORK_ERROR');
-      // Scroll to top to show error message
-      window.scrollTo({ top: 0, behavior: 'smooth' });
     } finally {
       setLoading(false);
     }
@@ -990,13 +896,90 @@ function BookingFlowInner() {
               <p className="text-gray-600">We need your details to confirm the booking</p>
             </div>
 
-            {/* Booking Summary Card */}
-            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-              <div className="flex items-center mb-3">
-                <MapPin className="h-5 w-5 text-blue-600 mr-2" />
-                <h3 className="font-semibold text-gray-900">{shop?.name || 'Salon'}</h3>
+            {/* Inline sign in option */}
+            {!loggedIn && (
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-5">
+                <div className="flex items-center justify-between mb-3">
+                  <div className="flex items-center space-x-2">
+                    <User className="h-5 w-5 text-blue-600" />
+                    <span className="text-sm font-medium text-gray-900">Already have an account?</span>
+                  </div>
+                  <button
+                    onClick={() => { setShowInlineLogin(!showInlineLogin); setLoginError(''); }}
+                    className="text-sm font-medium text-blue-600 hover:text-blue-700 transition-colors"
+                  >
+                    {showInlineLogin ? 'Hide sign in' : 'Sign in to auto-fill'}
+                  </button>
+                </div>
+                {showInlineLogin && (
+                  <div className="space-y-3">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Email or Phone</label>
+                      <input
+                        type="text"
+                        placeholder="your.email@example.com or 9876543210"
+                        value={loginForm.email}
+                        onChange={(e) => setLoginForm({ ...loginForm, email: e.target.value })}
+                        className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Password</label>
+                      <input
+                        type="password"
+                        placeholder="Enter your password"
+                        value={loginForm.password}
+                        onChange={(e) => setLoginForm({ ...loginForm, password: e.target.value })}
+                        className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      />
+                    </div>
+                    <button
+                      onClick={async () => {
+                        setLoginError('');
+                        const identifier = loginForm.email.trim();
+                        const isEmail = /\S+@\S+\.\S+/.test(identifier);
+                        
+                        const { signInWithEmail, signInWithPhone } = await import('@/lib/auth-helpers');
+                        const result = isEmail 
+                          ? await signInWithEmail({ email: identifier, password: loginForm.password })
+                          : await signInWithPhone({ phone: identifier, password: loginForm.password });
+                          
+                        if (!result.success) {
+                          setLoginError(result.error || 'Sign in failed');
+                          return;
+                        }
+                        const { user: authUser } = await getCurrentUser();
+                        if (authUser) {
+                          setLoggedIn(true);
+                          setCustomerInfo(ci => ({
+                            name: authUser.user_metadata?.name || ci.name,
+                            email: authUser.email || ci.email,
+                            phone: authUser.user_metadata?.phone || ci.phone,
+                          }));
+                          setAuthPrefilled(true);
+                          try { await ensureCustomerRecord(); } catch {}
+                        }
+                        setShowInlineLogin(false);
+                        if (customerInfo.name && customerInfo.phone) {
+                          await handleBooking();
+                        }
+                      }}
+                      className="w-full bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg px-4 py-3 transition-colors"
+                    >
+                      Sign In
+                    </button>
+                    {loginError && (
+                      <div className="bg-red-50 border border-red-200 rounded-lg p-3">
+                        <p className="text-sm text-red-600">{loginError}</p>
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
-              <div className="text-sm text-gray-600 space-y-2 pl-7">
+            )}
+
+            <div className="bg-gray-50 p-4 rounded-lg">
+              <div className="text-sm text-gray-600 space-y-1">
                 <div className="flex items-center space-x-2">
                   <Calendar className="h-4 w-4" />
                   <span>{new Date(selectedDate).toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}</span>
@@ -1022,7 +1005,7 @@ function BookingFlowInner() {
                       setValidationErrors({ ...validationErrors, name: '' });
                     }
                   }}
-                  className={`w-full p-3 border rounded-lg focus:ring-2 focus:border-transparent placeholder:text-gray-300 ${
+                  className={`w-full p-3 border rounded-lg focus:ring-2 focus:border-transparent ${
                     validationErrors.name 
                       ? 'border-red-300 focus:ring-red-500' 
                       : 'border-gray-300 focus:ring-blue-500'
@@ -1045,19 +1028,15 @@ function BookingFlowInner() {
                       setValidationErrors({ ...validationErrors, phone: '' });
                     }
                   }}
-                  disabled={loggedIn}
-                  className={`w-full p-3 border rounded-lg focus:ring-2 focus:border-transparent placeholder:text-gray-300 ${
+                  className={`w-full p-3 border rounded-lg focus:ring-2 focus:border-transparent ${
                     validationErrors.phone 
                       ? 'border-red-300 focus:ring-red-500' 
                       : 'border-gray-300 focus:ring-blue-500'
-                  } ${loggedIn ? 'bg-gray-100 cursor-not-allowed' : ''}`}
+                  }`}
                   placeholder="Enter your phone number"
                 />
                 {validationErrors.phone && (
                   <p className="text-red-500 text-sm mt-1">{validationErrors.phone}</p>
-                )}
-                {loggedIn && (
-                  <p className="text-xs text-gray-500 mt-1">Phone number cannot be changed during booking</p>
                 )}
               </div>
               
@@ -1072,19 +1051,15 @@ function BookingFlowInner() {
                       setValidationErrors({ ...validationErrors, email: '' });
                     }
                   }}
-                  disabled={loggedIn}
-                  className={`w-full p-3 border rounded-lg focus:ring-2 focus:border-transparent placeholder:text-gray-300 ${
+                  className={`w-full p-3 border rounded-lg focus:ring-2 focus:border-transparent ${
                     validationErrors.email 
                       ? 'border-red-300 focus:ring-red-500' 
                       : 'border-gray-300 focus:ring-blue-500'
-                  } ${loggedIn ? 'bg-gray-100 cursor-not-allowed' : ''}`}
+                  }`}
                   placeholder="Enter your email address"
                 />
                 {validationErrors.email && (
                   <p className="text-red-500 text-sm mt-1">{validationErrors.email}</p>
-                )}
-                {loggedIn && (
-                  <p className="text-xs text-gray-500 mt-1">Email cannot be changed during booking</p>
                 )}
               </div>
               
@@ -1092,16 +1067,16 @@ function BookingFlowInner() {
               {!loggedIn && (
                 <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
                   <p className="text-sm text-blue-800">
-                    💡 We'll verify your email with a code. After booking, you can access your bookings anytime.
+                    💡 We'll create a guest account for you. After booking, you can set a password to access your bookings anytime.
                   </p>
                 </div>
               )}
               
-              {/* Show locked credentials message for logged users */}
+              {/* Show update message for logged users */}
               {loggedIn && (
                 <div className="bg-green-50 border border-green-200 rounded-lg p-3">
                   <p className="text-sm text-green-800">
-                    ✅ Booking as <span className="font-medium">{customerInfo.email || 'registered user'}</span>
+                    ✅ Booking as <span className="font-medium">{customerInfo.email || 'registered user'}</span>. You can update your details above if needed.
                   </p>
                 </div>
               )}
@@ -1136,41 +1111,11 @@ function BookingFlowInner() {
               <h2 className="text-2xl font-bold text-gray-900 mb-2">Review & Confirm</h2>
               <p className="text-gray-600">Double-check your booking details before finalizing.</p>
             </div>
-
-            {/* Shop Information Card */}
-            {shop && (
-              <div className="bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 rounded-lg p-5">
-                <div className="flex items-start space-x-4">
-                  <div className="flex-shrink-0">
-                    <div className="h-16 w-16 rounded-lg bg-white shadow-sm flex items-center justify-center">
-                      <span className="text-2xl">💈</span>
-                    </div>
-                  </div>
-                  <div className="flex-1">
-                    <h3 className="text-lg font-bold text-gray-900 mb-1">{shop.name}</h3>
-                    {shop.address && (
-                      <div className="flex items-start text-sm text-gray-600 mb-2">
-                        <MapPin className="h-4 w-4 mr-1 mt-0.5 flex-shrink-0" />
-                        <span>{shop.address}</span>
-                      </div>
-                    )}
-                    {shop.phone && (
-                      <div className="text-sm text-gray-600">
-                        📞 {shop.phone}
-                      </div>
-                    )}
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {/* Booking Details */}
             <div className="grid gap-4">
               <div className="bg-white border rounded-lg p-4 space-y-3">
-                <h3 className="text-sm font-semibold text-gray-800 uppercase tracking-wide mb-3">Appointment Details</h3>
                 <div className="flex items-center justify-between">
                   <span className="text-sm font-medium text-gray-600">Date & Time</span>
-                  <span className="text-sm text-gray-900 font-medium">{formatDateLong(selectedDate)} @ {selectedSlot?.time}</span>
+                  <span className="text-sm text-gray-900">{formatDateLong(selectedDate)} @ {selectedSlot?.time}</span>
                 </div>
                 <div className="flex items-center justify-between">
                   <span className="text-sm font-medium text-gray-600">Service</span>
@@ -1185,14 +1130,11 @@ function BookingFlowInner() {
                   <span className="text-sm text-gray-900">{service?.duration ? `${service.duration} min` : '—'}</span>
                 </div>
                 <div className="border-t pt-3 mt-2 flex items-center justify-between">
-                  <span className="text-base font-semibold text-gray-800">Total Amount</span>
-                  <span className="text-lg font-bold text-green-600">{totalPrice ? `₹${totalPrice}` : 'N/A'}</span>
+                  <span className="text-sm font-semibold text-gray-800">Total</span>
+                  <span className="text-base font-bold text-gray-900">{totalPrice ? `₹${totalPrice}` : 'N/A'}</span>
                 </div>
               </div>
-
-              {/* Customer Details */}
               <div className="bg-white border rounded-lg p-4 space-y-3">
-                <h3 className="text-sm font-semibold text-gray-800 uppercase tracking-wide mb-3">Your Details</h3>
                 <div className="flex items-center justify-between">
                   <span className="text-sm font-medium text-gray-600">Name</span>
                   <span className="text-sm text-gray-900">{customerInfo.name}</span>
@@ -1217,32 +1159,15 @@ function BookingFlowInner() {
               </button>
               <button
                 onClick={handleBooking}
-                disabled={loading || otpSending}
+                disabled={loading}
                 className="w-full sm:flex-1 bg-green-600 text-white py-3 px-4 rounded-lg font-medium hover:bg-green-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors flex items-center justify-center space-x-2"
               >
-                {loading ? (
-                  'Saving...'
-                ) : otpSending ? (
-                  'Sending Code...'
-                ) : otpVerified ? (
-                  <><Check className="h-5 w-5" /><span>Confirm Booking</span></>
-                ) : (
-                  <><Check className="h-5 w-5" /><span>Verify & Book</span></>
-                )}
+                {loading ? 'Saving...' : (<><Check className="h-5 w-5" /><span>Confirm Booking</span></>)}
               </button>
             </div>
           </div>
         )}
       </div>
-
-      {/* OTP Verification Modal */}
-      <OTPModal
-        isOpen={showOTPModal}
-        onClose={() => setShowOTPModal(false)}
-        onVerify={handleOTPVerify}
-        contactInfo={customerInfo}
-        verificationType="email"
-      />
     </div>
   );
 }
