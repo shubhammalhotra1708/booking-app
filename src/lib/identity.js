@@ -13,33 +13,35 @@ export function normalizePhone(raw) {
   return '+' + core; // final normalized with plus
 }
 
-// Attempt to find existing customer by email (unique) or phone.
-// Returns null if not found or if RLS blocks access.
+/**
+ * Find existing customer by EMAIL ONLY (primary identifier)
+ *
+ * IMPORTANT: Phone is NOT used for identity lookup because:
+ * - Phone is NOT unique in Customer table
+ * - Multiple customers can share the same phone (e.g., family members)
+ * - Email is the ONLY unique identifier for customers
+ *
+ * @param {Object} supabase - Supabase client
+ * @param {Object} params - Search parameters
+ * @param {string} params.email - Email to search for (required for identity)
+ * @param {string} params.phone - Phone (ignored for identity lookup)
+ * @returns {Object|null} Customer record or null
+ */
 export async function findExistingCustomer(supabase, { email, phone }) {
   try {
+    // Only search by email - it's the ONLY unique identifier
+    // Phone is NOT unique and should NOT be used for identity lookup
     if (email) {
       const { data, error } = await supabase
         .from('Customer')
-        .select('id, user_id, email, phone')
+        .select('id, user_id, email, phone, phone_normalized')
         .eq('email', email)
         .maybeSingle();
       if (!error && data) return data;
     }
-    if (phone) {
-      // Try phone_normalized first (new column), fallback to legacy phone field
-      const { data: byNormalized, error: normErr } = await supabase
-        .from('Customer')
-        .select('id, user_id, email, phone, phone_normalized')
-        .eq('phone_normalized', phone)
-        .limit(1);
-      if (!normErr && byNormalized && byNormalized.length) return byNormalized[0];
-      const { data, error } = await supabase
-        .from('Customer')
-        .select('id, user_id, email, phone, phone_normalized')
-        .eq('phone', phone)
-        .limit(1);
-      if (!error && data && data.length) return data[0];
-    }
+
+    // NOTE: We intentionally do NOT search by phone here
+    // Phone is contact info only, not an identifier
     return null;
   } catch (_) {
     return null; // swallow RLS errors for guest flow

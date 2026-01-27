@@ -813,26 +813,26 @@ export async function ensureCustomerRecord(overrides = {}) {
     
     logger.debug('📝 Creating new Customer record:', { ...payload, user_id: payload.user_id?.substring(0, 8) + '...' });
 
-    // Double-check for conflicts before insert (defensive - should already be caught above)
-    for (const field of ['email', 'phone']) {
-      if (!payload[field]) continue;
+    // Double-check for email conflicts before insert (defensive - should already be caught above)
+    // NOTE: Only check email - phone is NOT unique and can be shared by multiple customers
+    if (payload.email) {
       try {
         const { data: conflict } = await supa
           .from('Customer')
           .select('id,user_id')
-          .eq(field, payload[field])
+          .eq('email', payload.email)
           .maybeSingle();
         if (conflict && conflict.user_id !== user.id) {
-          logger.error(`⚠️ UNEXPECTED: Conflict detected on ${field} during insert - this should have been caught earlier!`);
+          logger.error('⚠️ UNEXPECTED: Email conflict detected during insert - this should have been caught earlier!');
           return {
             success: false,
             error: 'ACCOUNT_EXISTS',
-            message: `This ${field} is already registered to another account.`,
+            message: 'This email is already registered to another account.',
             code: 'ACCOUNT_EXISTS'
           };
         }
       } catch (err) {
-        logger.warn(`Could not check ${field} conflict:`, err);
+        logger.warn('Could not check email conflict:', err);
       }
     }
 
@@ -845,48 +845,34 @@ export async function ensureCustomerRecord(overrides = {}) {
       .maybeSingle();
 
     if (createErr && createErr.code === '23505') {
-      // Unique violation on email/phone, attempt to reuse existing row for this user (race) or return ACCOUNT_EXISTS
-      // Check if conflict belongs to another user
+      // Unique violation on email (phone is NOT unique, so only email can cause this)
+      // Attempt to reuse existing row for this user (race condition) or return ACCOUNT_EXISTS
       const conflictEmail = payload.email;
-      const conflictPhoneNorm = payload.phone_normalized;
-      let ownershipConflict = false;
-      
+
       if (conflictEmail) {
         const { data: emailRow } = await supa.from('Customer').select('*').eq('email', conflictEmail).maybeSingle();
         if (emailRow && emailRow.user_id && emailRow.user_id !== user.id) {
           logger.warn('⚠️ Email conflict: belongs to different user');
-          ownershipConflict = true;
+          if (typeof window !== 'undefined') window.__ensuringCustomer = false;
+          return { success: false, data: null, error: 'ACCOUNT_EXISTS' };
         }
         if (emailRow && emailRow.user_id === user.id) {
           logger.debug('✅ Email conflict resolved: belongs to current user');
           if (typeof window !== 'undefined') window.__ensuringCustomer = false;
           return { success: true, data: emailRow, error: null };
         }
-      }
-      
-      if (!ownershipConflict && conflictPhoneNorm) {
-        const { data: phoneRow } = await supa.from('Customer').select('*').eq('phone_normalized', conflictPhoneNorm).maybeSingle();
-        if (phoneRow && phoneRow.user_id && phoneRow.user_id !== user.id) {
-          logger.warn('⚠️ Phone conflict: belongs to different user');
-          ownershipConflict = true;
-        }
-        if (phoneRow && phoneRow.user_id === user.id) {
-          logger.debug('✅ Phone conflict resolved: belongs to current user');
+        // Email exists but user_id is NULL (guest record) - should have been claimed above
+        if (emailRow && !emailRow.user_id) {
+          logger.warn('⚠️ Unique constraint conflict with unclaimed guest record:', { email: conflictEmail });
           if (typeof window !== 'undefined') window.__ensuringCustomer = false;
-          return { success: true, data: phoneRow, error: null };
+          return { success: false, data: null, error: 'Email already registered. Please sign in to claim your account.' };
         }
       }
-      
-      if (ownershipConflict) {
-        logger.warn('⚠️ Account exists with these credentials for a different user');
-        if (typeof window !== 'undefined') window.__ensuringCustomer = false;
-        return { success: false, data: null, error: 'ACCOUNT_EXISTS' };
-      }
-      
-      // If we get here, conflict might be with a null user_id record (guest record not claimed)
-      logger.warn('⚠️ Unique constraint conflict with unclaimed guest record:', { email: conflictEmail, phone: conflictPhoneNorm });
+
+      // Unknown unique constraint violation
+      logger.warn('⚠️ Unknown unique constraint violation');
       if (typeof window !== 'undefined') window.__ensuringCustomer = false;
-      return { success: false, data: null, error: 'Phone or email already registered. Please use different contact details.' };
+      return { success: false, data: null, error: 'Email already registered. Please use a different email.' };
     }
 
     if (createErr && createErr.code !== '23505') {
