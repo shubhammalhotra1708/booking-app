@@ -382,7 +382,8 @@ function BookingFlowInner() {
     try {
       const result = await verifyOTP({
         email: customerInfo.email,
-        phone: customerInfo.phone, // Pass phone for customer record creation
+        phone: customerInfo.phone,
+        name: customerInfo.name, // Pass all form data for customer record creation
         token
       });
 

@@ -462,11 +462,17 @@ export async function sendOTP({ email, phone, name }) {
 /**
  * Verify OTP code
  * Automatically links to anonymous session if applicable
+ *
+ * @param {Object} params
+ * @param {string} [params.email] - Email for verification
+ * @param {string} [params.phone] - Phone for verification AND customer record
+ * @param {string} [params.name] - Name from form for customer record
+ * @param {string} params.token - OTP code
  */
-export async function verifyOTP({ email, phone, token }) {
+export async function verifyOTP({ email, phone, name, token }) {
   try {
     const supa = createClient();
-    
+
     const verifyParams = email
       ? { email, token, type: 'email' }
       : { phone, token, type: 'sms' };
@@ -475,8 +481,8 @@ export async function verifyOTP({ email, phone, token }) {
 
     if (error) {
       logger.error('❌ verifyOTP error:', error);
-      return { 
-        success: false, 
+      return {
+        success: false,
         error: error.message === 'Token has expired or is invalid'
           ? 'Invalid or expired code. Please request a new one.'
           : 'Verification failed. Please try again.'
@@ -486,10 +492,15 @@ export async function verifyOTP({ email, phone, token }) {
     // After successful verification, ensure Customer record exists
     if (data.user) {
       logger.debug('✅ OTP verified, ensuring Customer record');
+      // Use phone/name from function parameters (form data) since user_metadata
+      // may not be updated for existing users (e.g., salon owner booking as customer)
+      const customerPhone = phone || data.user.phone || data.user.user_metadata?.phone;
+      const customerName = name || data.user.user_metadata?.name || 'Customer';
+
       const customerResult = await ensureCustomerRecord({
         email: data.user.email,
-        phone: data.user.phone,
-        name: data.user.user_metadata?.name || 'Customer'
+        phone: customerPhone,
+        name: customerName
       });
       
       // Handle Customer record creation/linking
