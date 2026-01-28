@@ -382,7 +382,8 @@ function BookingFlowInner() {
     try {
       const result = await verifyOTP({
         email: customerInfo.email,
-        phone: customerInfo.phone, // Pass phone for customer record creation
+        phone: customerInfo.phone,
+        name: customerInfo.name, // Pass all form data for customer record creation
         token
       });
 
@@ -1022,15 +1023,19 @@ function BookingFlowInner() {
                       setValidationErrors({ ...validationErrors, name: '' });
                     }
                   }}
+                  disabled={loggedIn}
                   className={`w-full p-3 border rounded-lg focus:ring-2 focus:border-transparent placeholder:text-gray-300 ${
-                    validationErrors.name 
-                      ? 'border-red-300 focus:ring-red-500' 
+                    validationErrors.name
+                      ? 'border-red-300 focus:ring-red-500'
                       : 'border-gray-300 focus:ring-blue-500'
-                  }`}
+                  } ${loggedIn ? 'bg-gray-100 cursor-not-allowed' : ''}`}
                   placeholder="Enter your full name"
                 />
                 {validationErrors.name && (
                   <p className="text-red-500 text-sm mt-1">{validationErrors.name}</p>
+                )}
+                {loggedIn && (
+                  <p className="text-xs text-gray-500 mt-1">Name cannot be changed during booking. Update in your profile.</p>
                 )}
               </div>
               
@@ -1057,7 +1062,7 @@ function BookingFlowInner() {
                   <p className="text-red-500 text-sm mt-1">{validationErrors.phone}</p>
                 )}
                 {loggedIn && (
-                  <p className="text-xs text-gray-500 mt-1">Phone number cannot be changed during booking</p>
+                  <p className="text-xs text-gray-500 mt-1">Phone number cannot be changed during booking. Update in your profile.</p>
                 )}
               </div>
               
@@ -1084,7 +1089,7 @@ function BookingFlowInner() {
                   <p className="text-red-500 text-sm mt-1">{validationErrors.email}</p>
                 )}
                 {loggedIn && (
-                  <p className="text-xs text-gray-500 mt-1">Email cannot be changed during booking</p>
+                  <p className="text-xs text-gray-500 mt-1">Email cannot be changed during booking. Update in your profile.</p>
                 )}
               </div>
               

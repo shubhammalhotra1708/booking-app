@@ -403,7 +403,7 @@ export async function sendOTP({ email, phone, name }) {
     // For new users (not logged in), check if email/phone already exists
     if (!currentUser || isAnonymous) {
       const existingCheck = await checkExistingCustomer({ email, phone });
-      
+
       if (existingCheck.exists) {
         return {
           success: false,
@@ -414,8 +414,6 @@ export async function sendOTP({ email, phone, name }) {
       }
     }
 
-    const identifier = email || phone;
-    
     // For anonymous users, use linkIdentity to upgrade session
     // For new/existing users, use signInWithOtp
     const options = {
@@ -435,7 +433,7 @@ export async function sendOTP({ email, phone, name }) {
       options.shouldCreateUser = false;
     }
 
-    const otpParams = email 
+    const otpParams = email
       ? { email, options }
       : { phone, options };
 
@@ -444,8 +442,8 @@ export async function sendOTP({ email, phone, name }) {
     if (error) {
       logger.error('❌ sendOTP error:', error);
       if (error.message?.includes('already registered') || error.status === 422) {
-        return { 
-          success: false, 
+        return {
+          success: false,
           error: 'This email/phone is already registered. Please sign in instead.',
           code: 'already_registered'
         };
@@ -464,11 +462,17 @@ export async function sendOTP({ email, phone, name }) {
 /**
  * Verify OTP code
  * Automatically links to anonymous session if applicable
+ *
+ * @param {Object} params
+ * @param {string} [params.email] - Email for verification
+ * @param {string} [params.phone] - Phone for verification AND customer record
+ * @param {string} [params.name] - Name from form for customer record
+ * @param {string} params.token - OTP code
  */
-export async function verifyOTP({ email, phone, token }) {
+export async function verifyOTP({ email, phone, name, token }) {
   try {
     const supa = createClient();
-    
+
     const verifyParams = email
       ? { email, token, type: 'email' }
       : { phone, token, type: 'sms' };
@@ -477,8 +481,8 @@ export async function verifyOTP({ email, phone, token }) {
 
     if (error) {
       logger.error('❌ verifyOTP error:', error);
-      return { 
-        success: false, 
+      return {
+        success: false,
         error: error.message === 'Token has expired or is invalid'
           ? 'Invalid or expired code. Please request a new one.'
           : 'Verification failed. Please try again.'
@@ -488,10 +492,15 @@ export async function verifyOTP({ email, phone, token }) {
     // After successful verification, ensure Customer record exists
     if (data.user) {
       logger.debug('✅ OTP verified, ensuring Customer record');
+      // Use phone/name from function parameters (form data) since user_metadata
+      // may not be updated for existing users (e.g., salon owner booking as customer)
+      const customerPhone = phone || data.user.phone || data.user.user_metadata?.phone;
+      const customerName = name || data.user.user_metadata?.name || 'Customer';
+
       const customerResult = await ensureCustomerRecord({
         email: data.user.email,
-        phone: data.user.phone,
-        name: data.user.user_metadata?.name || 'Customer'
+        phone: customerPhone,
+        name: customerName
       });
       
       // Handle Customer record creation/linking
@@ -815,26 +824,26 @@ export async function ensureCustomerRecord(overrides = {}) {
     
     logger.debug('📝 Creating new Customer record:', { ...payload, user_id: payload.user_id?.substring(0, 8) + '...' });
 
-    // Double-check for conflicts before insert (defensive - should already be caught above)
-    for (const field of ['email', 'phone']) {
-      if (!payload[field]) continue;
+    // Double-check for email conflicts before insert (defensive - should already be caught above)
+    // NOTE: Only check email - phone is NOT unique and can be shared by multiple customers
+    if (payload.email) {
       try {
         const { data: conflict } = await supa
           .from('Customer')
           .select('id,user_id')
-          .eq(field, payload[field])
+          .eq('email', payload.email)
           .maybeSingle();
         if (conflict && conflict.user_id !== user.id) {
-          logger.error(`⚠️ UNEXPECTED: Conflict detected on ${field} during insert - this should have been caught earlier!`);
+          logger.error('⚠️ UNEXPECTED: Email conflict detected during insert - this should have been caught earlier!');
           return {
             success: false,
             error: 'ACCOUNT_EXISTS',
-            message: `This ${field} is already registered to another account.`,
+            message: 'This email is already registered to another account.',
             code: 'ACCOUNT_EXISTS'
           };
         }
       } catch (err) {
-        logger.warn(`Could not check ${field} conflict:`, err);
+        logger.warn('Could not check email conflict:', err);
       }
     }
 
@@ -847,48 +856,34 @@ export async function ensureCustomerRecord(overrides = {}) {
       .maybeSingle();
 
     if (createErr && createErr.code === '23505') {
-      // Unique violation on email/phone, attempt to reuse existing row for this user (race) or return ACCOUNT_EXISTS
-      // Check if conflict belongs to another user
+      // Unique violation on email (phone is NOT unique, so only email can cause this)
+      // Attempt to reuse existing row for this user (race condition) or return ACCOUNT_EXISTS
       const conflictEmail = payload.email;
-      const conflictPhoneNorm = payload.phone_normalized;
-      let ownershipConflict = false;
-      
+
       if (conflictEmail) {
         const { data: emailRow } = await supa.from('Customer').select('*').eq('email', conflictEmail).maybeSingle();
         if (emailRow && emailRow.user_id && emailRow.user_id !== user.id) {
           logger.warn('⚠️ Email conflict: belongs to different user');
-          ownershipConflict = true;
+          if (typeof window !== 'undefined') window.__ensuringCustomer = false;
+          return { success: false, data: null, error: 'ACCOUNT_EXISTS' };
         }
         if (emailRow && emailRow.user_id === user.id) {
           logger.debug('✅ Email conflict resolved: belongs to current user');
           if (typeof window !== 'undefined') window.__ensuringCustomer = false;
           return { success: true, data: emailRow, error: null };
         }
-      }
-      
-      if (!ownershipConflict && conflictPhoneNorm) {
-        const { data: phoneRow } = await supa.from('Customer').select('*').eq('phone_normalized', conflictPhoneNorm).maybeSingle();
-        if (phoneRow && phoneRow.user_id && phoneRow.user_id !== user.id) {
-          logger.warn('⚠️ Phone conflict: belongs to different user');
-          ownershipConflict = true;
-        }
-        if (phoneRow && phoneRow.user_id === user.id) {
-          logger.debug('✅ Phone conflict resolved: belongs to current user');
+        // Email exists but user_id is NULL (guest record) - should have been claimed above
+        if (emailRow && !emailRow.user_id) {
+          logger.warn('⚠️ Unique constraint conflict with unclaimed guest record:', { email: conflictEmail });
           if (typeof window !== 'undefined') window.__ensuringCustomer = false;
-          return { success: true, data: phoneRow, error: null };
+          return { success: false, data: null, error: 'Email already registered. Please sign in to claim your account.' };
         }
       }
-      
-      if (ownershipConflict) {
-        logger.warn('⚠️ Account exists with these credentials for a different user');
-        if (typeof window !== 'undefined') window.__ensuringCustomer = false;
-        return { success: false, data: null, error: 'ACCOUNT_EXISTS' };
-      }
-      
-      // If we get here, conflict might be with a null user_id record (guest record not claimed)
-      logger.warn('⚠️ Unique constraint conflict with unclaimed guest record:', { email: conflictEmail, phone: conflictPhoneNorm });
+
+      // Unknown unique constraint violation
+      logger.warn('⚠️ Unknown unique constraint violation');
       if (typeof window !== 'undefined') window.__ensuringCustomer = false;
-      return { success: false, data: null, error: 'Phone or email already registered. Please use different contact details.' };
+      return { success: false, data: null, error: 'Email already registered. Please use a different email.' };
     }
 
     if (createErr && createErr.code !== '23505') {

@@ -125,7 +125,8 @@ export default function ClientDashboard() {
     try {
       const result = await verifyOTP({
         email: email.trim(),
-        phone: phone.trim(), // Pass phone for customer record
+        phone: phone.trim(),
+        name: name.trim(), // Pass all form data for customer record
         token
       });
 
