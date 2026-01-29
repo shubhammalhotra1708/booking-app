@@ -703,7 +703,7 @@ export default function BookingModal({ isOpen, onClose, salon }) {
                             value={customerDetails.phone}
                             onChange={(e) => setCustomerDetails({...customerDetails, phone: e.target.value})}
                             className="input-booksy"
-                            placeholder="+91 9876543210"
+                            placeholder="9876543210"
                           />
                         </div>
                         <div>
