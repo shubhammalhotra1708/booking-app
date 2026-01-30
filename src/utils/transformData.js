@@ -78,19 +78,19 @@ export const transformServiceData = (apiService) => {
 
 export const transformStaffData = (apiStaff) => {
   if (!apiStaff) return null;
-  
+
   // Parse specialties if it's a JSON string
   let specialties = [];
   if (apiStaff.specialties) {
     try {
-      specialties = typeof apiStaff.specialties === 'string' 
-        ? JSON.parse(apiStaff.specialties) 
+      specialties = typeof apiStaff.specialties === 'string'
+        ? JSON.parse(apiStaff.specialties)
         : apiStaff.specialties;
     } catch (e) {
       specialties = [apiStaff.specialties];
     }
   }
-  
+
   return {
     id: apiStaff.id,
     name: apiStaff.name || 'Staff Member',
@@ -103,6 +103,27 @@ export const transformStaffData = (apiStaff) => {
     role: apiStaff.role || 'Stylist',
     bio: apiStaff.bio || 'Bio not available'
   };
+};
+
+export const transformProductData = (apiProduct) => {
+  if (!apiProduct) return null;
+
+  return {
+    id: apiProduct.id,
+    name: apiProduct.name || 'Unnamed Product',
+    price: apiProduct.price || 0,
+    description: apiProduct.description || '',
+    image_url: apiProduct.image_url || null,
+    category: apiProduct.category || 'Uncategorized',
+    quantity: apiProduct.quantity || 0,
+    track_inventory: apiProduct.track_inventory || false,
+    in_stock: !apiProduct.track_inventory || (apiProduct.quantity > 0)
+  };
+};
+
+export const transformProductsData = (apiProducts) => {
+  if (!Array.isArray(apiProducts)) return [];
+  return apiProducts.map(transformProductData).filter(Boolean);
 };
 
 // Helper functions

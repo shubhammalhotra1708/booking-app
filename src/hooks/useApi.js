@@ -158,6 +158,7 @@ export const useShopDetails = (shopId) => {
   const [shop, setShop] = useState(null);
   const [services, setServices] = useState([]);
   const [staff, setStaff] = useState([]);
+  const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
@@ -172,24 +173,26 @@ export const useShopDetails = (shopId) => {
       try {
         setLoading(true);
         setError(null);
-        
+
         console.log(`📡 Fetching shop details for ID: ${shopId}`);
-        
-        // Fetch shop details, services, and staff in parallel
-        const [shopResponse, servicesResponse, staffResponse] = await Promise.all([
+
+        // Fetch shop details, services, staff, and products in parallel
+        const [shopResponse, servicesResponse, staffResponse, productsResponse] = await Promise.all([
           fetch(`/api/shops?shop_id=${shopId}`),
           fetch(`/api/services?shop_id=${shopId}`),
-          fetch(`/api/staff?shop_id=${shopId}`)
+          fetch(`/api/staff?shop_id=${shopId}`),
+          fetch(`/api/products?shop_id=${shopId}`)
         ]);
-        
-        const [shopData, servicesData, staffData] = await Promise.all([
+
+        const [shopData, servicesData, staffData, productsData] = await Promise.all([
           shopResponse.json(),
           servicesResponse.json(),
-          staffResponse.json()
+          staffResponse.json(),
+          productsResponse.json()
         ]);
-        
+
         console.log(`📦 Shop data response:`, shopData);
-        
+
         if (shopData.success && shopData.data?.length > 0) {
           setShop(shopData.data[0]);
           console.log(`✅ Shop loaded: ${shopData.data[0].name}`);
@@ -197,17 +200,22 @@ export const useShopDetails = (shopId) => {
           console.error(`❌ Shop not found for ID: ${shopId}`);
           setError('Shop not found');
         }
-        
+
         if (servicesData.success) {
           setServices(servicesData.data || []);
           console.log(`✅ Loaded ${servicesData.data?.length || 0} services`);
         }
-        
+
         if (staffData.success) {
           setStaff(staffData.data || []);
           console.log(`✅ Loaded ${staffData.data?.length || 0} staff`);
         }
-        
+
+        if (productsData.success) {
+          setProducts(productsData.data || []);
+          console.log(`✅ Loaded ${productsData.data?.length || 0} products`);
+        }
+
       } catch (err) {
         console.error(`❌ Error fetching shop details:`, err);
         setError(err.message);
@@ -219,7 +227,7 @@ export const useShopDetails = (shopId) => {
     fetchShopDetails();
   }, [shopId]);
 
-  return { shop, services, staff, loading, error };
+  return { shop, services, staff, products, loading, error };
 };
 
 // Transform functions are now imported from utils/transformData.js

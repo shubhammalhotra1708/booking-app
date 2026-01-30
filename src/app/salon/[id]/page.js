@@ -6,7 +6,8 @@ import Link from 'next/link';
 import Image from 'next/image';
 import Navbar from '../../../components/Navbar';
 import { useShopDetails } from '../../../hooks/useApi';
-import { transformShopData, transformServiceData, transformStaffData } from '../../../utils/transformData';
+import { transformShopData, transformServiceData, transformStaffData, transformProductData } from '../../../utils/transformData';
+import { ShoppingBagIcon } from '@heroicons/react/24/outline';
 import { 
   StarIcon, 
   MapPinIcon, 
@@ -36,24 +37,26 @@ export default function SalonProfile() {
   }
   
   // Fetch real shop data from API
-  const { shop: apiShop, services: apiServices, staff: apiStaff, loading, error } = useShopDetails(salonId);
-  
+  const { shop: apiShop, services: apiServices, staff: apiStaff, products: apiProducts, loading, error } = useShopDetails(salonId);
+
   const [isFavorited, setIsFavorited] = useState(false);
   const [selectedImageIndex, setSelectedImageIndex] = useState(0);
   const [genderFilter, setGenderFilter] = useState('ALL');
 
   // Use API data
-  let salon, services, staff;
-  
+  let salon, services, staff, products;
+
   if (!loading && !error && apiShop) {
     // Transform API data
     salon = {
       ...transformShopData(apiShop),
       services: apiServices?.map(transformServiceData) || [],
-      staff: apiStaff?.map(transformStaffData) || []
+      staff: apiStaff?.map(transformStaffData) || [],
+      products: apiProducts?.map(transformProductData) || []
     };
     services = salon.services || [];
     staff = salon.staff || [];
+    products = salon.products || [];
   }
   
   // Build image array with real images from DB + fallbacks
@@ -381,6 +384,53 @@ export default function SalonProfile() {
                 ))}
               </div>
             </div>
+
+            {/* Products */}
+            {products && products.length > 0 && (
+              <div className="bg-white rounded-xl shadow-lg p-3 sm:p-4 lg:p-6">
+                <div className="flex items-center gap-2 mb-4 sm:mb-6">
+                  <ShoppingBagIcon className="h-5 w-5 sm:h-6 sm:w-6 text-gray-900" />
+                  <h2 className="text-lg sm:text-xl lg:text-2xl font-bold text-gray-900">Products</h2>
+                </div>
+                <p className="text-xs sm:text-sm text-gray-500 mb-4">Available for purchase during your visit</p>
+
+                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4">
+                  {products.map((product) => (
+                    <div key={product.id} className="border border-gray-200 rounded-lg overflow-hidden hover:shadow-md transition-shadow">
+                      {product.image_url ? (
+                        <img
+                          src={product.image_url}
+                          alt={product.name}
+                          className="w-full h-24 sm:h-32 object-cover"
+                          onError={(e) => {
+                            e.target.style.display = 'none';
+                          }}
+                        />
+                      ) : (
+                        <div className="w-full h-24 sm:h-32 bg-gray-100 flex items-center justify-center">
+                          <ShoppingBagIcon className="h-8 w-8 text-gray-300" />
+                        </div>
+                      )}
+                      <div className="p-2 sm:p-3">
+                        <h3 className="text-xs sm:text-sm font-semibold text-gray-900 line-clamp-1">{product.name}</h3>
+                        {product.category && (
+                          <span className="text-xs text-gray-500">{product.category}</span>
+                        )}
+                        <div className="mt-1 flex items-center justify-between">
+                          <span className="text-sm sm:text-base font-bold text-teal-600">₹{product.price}</span>
+                          {product.track_inventory && !product.in_stock && (
+                            <span className="text-xs text-red-500">Out of stock</span>
+                          )}
+                        </div>
+                        {product.description && (
+                          <p className="text-xs text-gray-500 mt-1 line-clamp-2">{product.description}</p>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
 
             {/* Photos Gallery */}
             {salonImages.length > 1 && (

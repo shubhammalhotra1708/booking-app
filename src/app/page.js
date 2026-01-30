@@ -1,19 +1,11 @@
-'use client';
-
-import { useState } from 'react';
 import Navbar from '../components/Navbar';
 import HeroSection from '../components/HeroSection';
 import FeaturedSalons from '../components/FeaturedSalons';
 import PromotionsDeals from '../components/PromotionsDeals';
 import CustomerTestimonials from '../components/CustomerTestimonials';
 import HowItWorks from '../components/HowItWorks';
-import FilterSidebar from '../components/FilterSidebar';
-import SalonGrid from '../components/SalonGrid';
-import { featuredSalons } from '../data/mockData';
 
 export default function Home() {
-  const [isFilterOpen, setIsFilterOpen] = useState(false);
-
   return (
     <div className="min-h-screen" style={{ background: 'linear-gradient(to bottom, #f8fafc 0%, #ffffff 30%, #f9fafb 100%)' }}>
       <Navbar />
