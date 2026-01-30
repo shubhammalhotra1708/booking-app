@@ -35,7 +35,8 @@ export default function ProfilePage() {
   const [formData, setFormData] = useState({
     name: '',
     email: '',
-    phone: ''
+    phone: '',
+    birthday: ''
   });
   
   const [validationErrors, setValidationErrors] = useState({});
@@ -86,14 +87,16 @@ export default function ProfilePage() {
         setFormData({
           name: customerData.name || '',
           email: customerData.email || '',
-          phone: customerData.phone || ''
+          phone: customerData.phone || '',
+          birthday: customerData.birthday || ''
         });
       } else {
         // No customer record yet - show empty form
         setFormData({
           name: authUser.user_metadata?.name || '',
           email: authUser.email || '',
-          phone: authUser.user_metadata?.phone || ''
+          phone: authUser.user_metadata?.phone || '',
+          birthday: ''
         });
       }
       
@@ -183,19 +186,20 @@ export default function ProfilePage() {
             name: formData.name,
             email: formData.email,
             phone: formData.phone,
-            phone_normalized: phoneNorm
+            phone_normalized: phoneNorm,
+            birthday: formData.birthday || null
           })
           .eq('user_id', user.id);
-        
+
         if (updateError) {
           logger.error('Update error:', updateError);
-          
+
           if (updateError.code === '23505') {
             setError('The email or phone number is already in use. Please use different contact details.');
           } else {
             setError('Failed to update profile. Please try again.');
           }
-          
+
           setSaving(false);
           window.scrollTo({ top: 0, behavior: 'smooth' });
           return;
@@ -209,7 +213,8 @@ export default function ProfilePage() {
             name: formData.name,
             email: formData.email,
             phone: formData.phone,
-            phone_normalized: phoneNorm
+            phone_normalized: phoneNorm,
+            birthday: formData.birthday || null
           });
         
         if (createError) {
@@ -252,7 +257,8 @@ export default function ProfilePage() {
       setFormData({
         name: customer.name || '',
         email: customer.email || '',
-        phone: customer.phone || ''
+        phone: customer.phone || '',
+        birthday: customer.birthday || ''
       });
     }
     setIsEditing(false);
@@ -404,8 +410,8 @@ export default function ProfilePage() {
                       }
                     }}
                     className={`w-full p-3 border rounded-lg focus:ring-2 focus:border-transparent ${
-                      validationErrors.phone 
-                        ? 'border-red-300 focus:ring-red-500' 
+                      validationErrors.phone
+                        ? 'border-red-300 focus:ring-red-500'
                         : 'border-gray-300 focus:ring-blue-500'
                     }`}
                     placeholder="Enter your 10-digit phone number"
@@ -416,6 +422,34 @@ export default function ProfilePage() {
                 </div>
               ) : (
                 <p className="text-gray-900 text-lg">{formData.phone || '—'}</p>
+              )}
+            </div>
+
+            {/* Birthday */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                <Calendar className="w-4 h-4 inline mr-2" />
+                Birthday (Optional)
+              </label>
+              {isEditing ? (
+                <div>
+                  <input
+                    type="date"
+                    value={formData.birthday}
+                    onChange={(e) => setFormData({ ...formData, birthday: e.target.value })}
+                    className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    max={new Date().toISOString().split('T')[0]}
+                  />
+                  <p className="text-sm text-gray-500 mt-1">
+                    We&apos;ll send you special offers on your birthday!
+                  </p>
+                </div>
+              ) : (
+                <p className="text-gray-900 text-lg">
+                  {formData.birthday
+                    ? new Date(formData.birthday).toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' })
+                    : '—'}
+                </p>
               )}
             </div>
 

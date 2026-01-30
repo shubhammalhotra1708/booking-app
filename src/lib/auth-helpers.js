@@ -654,13 +654,18 @@ export async function ensureCustomerRecord(overrides = {}) {
           newName: overrides.name
         });
         
-        const { data: updated, error: updateErr } = await supa
-          .from('Customer')
-          .update({
+        const updatePayload = {
             phone: rawPhone || existingByUser.phone,
             phone_normalized: phoneNorm || existingByUser.phone_normalized,
             name: overrides.name || existingByUser.name
-          })
+          };
+        // Only update birthday if provided and not already set
+        if (overrides.birthday && !existingByUser.birthday) {
+          updatePayload.birthday = overrides.birthday;
+        }
+        const { data: updated, error: updateErr } = await supa
+          .from('Customer')
+          .update(updatePayload)
           .eq('id', existingByUser.id)
           .select('*')
           .maybeSingle();
@@ -820,6 +825,7 @@ export async function ensureCustomerRecord(overrides = {}) {
       email: sanitizedEmail,
       phone: overrides.phone || user.user_metadata?.phone || null,
       phone_normalized: phoneNorm || null,
+      birthday: overrides.birthday || null,
     };
     
     logger.debug('📝 Creating new Customer record:', { ...payload, user_id: payload.user_id?.substring(0, 8) + '...' });
