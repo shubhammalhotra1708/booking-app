@@ -1,5 +1,5 @@
 // Search utility functions for salon and service searches
-import { featuredSalons } from '@/data/mockData';
+// Note: Functions now accept salons data as a parameter instead of using mockData
 
 // Define keyword synonyms and related terms for flexible search
 const searchSynonyms = {
@@ -76,35 +76,39 @@ export const setUserLocation = (location) => {
 };
 
 // Main search function that searches both salons and services
-export const searchSalonsAndServices = (query, location = null) => {
-  if (!query.trim()) return [];
+// Now accepts salons array as parameter (fetched from API)
+export const searchSalonsAndServices = (query, salons = [], location = null) => {
+  if (!query.trim() || !salons || salons.length === 0) return [];
 
   const searchKeywords = getSearchKeywords(query);
   const results = [];
 
   // Search through all salons
-  featuredSalons.forEach(salon => {
+  salons.forEach(salon => {
     let relevanceScore = 0;
     const matchedServices = [];
     let nameMatch = false;
     let locationMatch = false;
 
     // Check salon name match (flexible)
-    if (matchesKeywords(salon.name, searchKeywords)) {
+    if (salon.name && matchesKeywords(salon.name, searchKeywords)) {
       relevanceScore += 3; // High relevance for name match
       nameMatch = true;
     }
 
-    // Check services match (flexible)
-    salon.services.forEach(service => {
-      if (matchesKeywords(service, searchKeywords)) {
+    // Check services match (flexible) - services can be array of strings or objects
+    const salonServices = salon.services || [];
+    salonServices.forEach(service => {
+      const serviceName = typeof service === 'string' ? service : service.name;
+      if (serviceName && matchesKeywords(serviceName, searchKeywords)) {
         relevanceScore += 2; // Medium relevance for service match
-        matchedServices.push(service);
+        matchedServices.push(serviceName);
       }
     });
 
     // Check address/location match (flexible)
-    if (matchesKeywords(salon.address, searchKeywords)) {
+    const salonAddress = salon.address || salon.location || '';
+    if (salonAddress && matchesKeywords(salonAddress, searchKeywords)) {
       relevanceScore += 1; // Low relevance for location match
       locationMatch = true;
     }
@@ -122,10 +126,10 @@ export const searchSalonsAndServices = (query, location = null) => {
         salon,
         relevanceScore,
         matchedServices,
-        matchReason: matchedServices.length > 0 
-          ? `Offers: ${matchedServices.join(', ')}` 
-          : nameMatch 
-            ? 'Salon name match' 
+        matchReason: matchedServices.length > 0
+          ? `Offers: ${matchedServices.join(', ')}`
+          : nameMatch
+            ? 'Salon name match'
             : locationMatch
               ? 'Location match'
               : 'Related services'
@@ -140,25 +144,30 @@ export const searchSalonsAndServices = (query, location = null) => {
 };
 
 // Get search suggestions based on partial input
-export const getSearchSuggestions = (query) => {
+// Now accepts salons array as parameter (fetched from API)
+export const getSearchSuggestions = (query, salons = []) => {
   if (!query.trim() || query.length < 2) return [];
 
   const searchKeywords = getSearchKeywords(query);
   const suggestions = new Set();
 
-  // Add salon names (flexible matching)
-  featuredSalons.forEach(salon => {
-    if (matchesKeywords(salon.name, searchKeywords)) {
-      suggestions.add(salon.name);
-    }
-
-    // Add matching services (flexible matching)
-    salon.services.forEach(service => {
-      if (matchesKeywords(service, searchKeywords)) {
-        suggestions.add(service);
+  // Add salon names (flexible matching) - if salons data is available
+  if (salons && salons.length > 0) {
+    salons.forEach(salon => {
+      if (salon.name && matchesKeywords(salon.name, searchKeywords)) {
+        suggestions.add(salon.name);
       }
+
+      // Add matching services (flexible matching) - services can be array of strings or objects
+      const salonServices = salon.services || [];
+      salonServices.forEach(service => {
+        const serviceName = typeof service === 'string' ? service : service.name;
+        if (serviceName && matchesKeywords(serviceName, searchKeywords)) {
+          suggestions.add(serviceName);
+        }
+      });
     });
-  });
+  }
 
   // Add common related terms based on input
   const commonTerms = ['Hair Salon', 'Hair Cut', 'Hair Color', 'Hair Styling', 'Beauty Salon'];

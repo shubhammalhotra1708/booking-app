@@ -3,15 +3,13 @@
 import { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { 
-  ArrowLeft, 
-  Star, 
+import {
+  ArrowLeft,
+  Star,
   MapPin,
   CheckCircle,
   Clock
 } from 'lucide-react';
-import { salonDetails } from '@/data/mockData';
-import { useShopDetails } from '@/hooks/useApi';
 import { transformShopData, transformServiceData } from '@/utils/transformData';
 
 
@@ -19,15 +17,15 @@ export default function BookingPage() {
   const params = useParams();
   const router = useRouter();
   const salonId = parseInt(params.id);
-  
+
   const [bookingSuccess, setBookingSuccess] = useState(false);
   const [bookingDetails, setBookingDetails] = useState(null);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  
-  // Start with mock data for fast load
-  const [salon, setSalon] = useState(salonDetails[salonId] || salonDetails[1]);
-  const [services, setServices] = useState(salon?.services || []);
+
+  // Start with null - data will be loaded from API
+  const [salon, setSalon] = useState(null);
+  const [services, setServices] = useState([]);
   
   useEffect(() => {
     // Load real data progressively
