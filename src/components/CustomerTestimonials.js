@@ -22,7 +22,8 @@ export default function CustomerTestimonials() {
     {
       id: 1,
       name: "Sarah Johnson",
-      image: "/api/placeholder/60/60",
+      initials: "SJ",
+      bgColor: "bg-pink-500",
       rating: 5,
       review: "Amazing experience! The booking was so easy and the stylist was incredibly talented. My hair has never looked better. Highly recommend this platform!",
       service: "Hair Color & Cut",
@@ -33,7 +34,8 @@ export default function CustomerTestimonials() {
     {
       id: 2,
       name: "Emily Chen",
-      image: "/api/placeholder/60/60",
+      initials: "EC",
+      bgColor: "bg-teal-500",
       rating: 5,
       review: "I love how convenient it is to find and book spa appointments. The massage therapist was professional and the ambiance was perfect for relaxation.",
       service: "Full Body Massage",
@@ -44,7 +46,8 @@ export default function CustomerTestimonials() {
     {
       id: 3,
       name: "Jessica Martinez",
-      image: "/api/placeholder/60/60",
+      initials: "JM",
+      bgColor: "bg-purple-500",
       rating: 5,
       review: "Found the perfect nail salon through this app! The staff was friendly, the place was clean, and my nails look absolutely stunning. Will definitely book again!",
       service: "Gel Manicure & Pedicure",
@@ -55,7 +58,8 @@ export default function CustomerTestimonials() {
     {
       id: 4,
       name: "Amanda Rodriguez",
-      image: "/api/placeholder/60/60",
+      initials: "AR",
+      bgColor: "bg-orange-500",
       rating: 5,
       review: "The facial treatment exceeded my expectations! Easy booking, great communication, and my skin is glowing. This platform makes self-care so accessible.",
       service: "Anti-Aging Facial",
@@ -66,7 +70,8 @@ export default function CustomerTestimonials() {
     {
       id: 5,
       name: "Rachel Thompson",
-      image: "/api/placeholder/60/60",
+      initials: "RT",
+      bgColor: "bg-blue-500",
       rating: 5,
       review: "Booked my wedding hair and makeup through this platform. The coordination was seamless and I felt absolutely beautiful on my special day. Thank you!",
       service: "Bridal Package",
@@ -134,11 +139,9 @@ export default function CustomerTestimonials() {
 
                     {/* Customer Info - More Compact */}
                     <div className="flex items-center justify-center space-x-3 mb-3">
-                      <img
-                        src={testimonial.image}
-                        alt={testimonial.name}
-                        className="w-10 h-10 rounded-full object-cover border-2 border-gray-200"
-                      />
+                      <div className={`w-10 h-10 rounded-full ${testimonial.bgColor} flex items-center justify-center border-2 border-gray-200`}>
+                        <span className="text-white font-semibold text-sm">{testimonial.initials}</span>
+                      </div>
                       <div className="text-center">
                         <h4 className="font-semibold text-gray-900 text-sm">{testimonial.name}</h4>
                         <p className="text-xs text-gray-500">{testimonial.date}</p>

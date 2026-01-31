@@ -467,31 +467,43 @@ export default function SalonProfile() {
             <div className="bg-white rounded-xl shadow-lg p-3 sm:p-4 lg:p-6">
               <h2 className="text-lg sm:text-xl lg:text-2xl font-bold text-gray-900 mb-4 sm:mb-6">Our Team</h2>
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
-                {salon.staff?.map((staff) => (
-                  <div key={staff.id} className="text-center">
-                    <img
-                      src={staff.profile_image_url || staff.image || '/default-avatar.png'}
-                      alt={staff.name}
-                      className="w-24 h-24 rounded-full mx-auto mb-4 object-cover"
-                      onError={(e) => { 
-                        e.target.onerror = null; 
-                        e.target.src = '/default-avatar.png'; 
-                      }}
-                    />
-                    <h3 className="font-semibold text-gray-900 mb-1">{staff.name}</h3>
-                    <p className="text-sm text-gray-600 mb-2">{staff.experience}</p>
+                {salon.staff?.map((staffMember) => (
+                  <div key={staffMember.id} className="text-center">
+                    {/* Staff Avatar - with proper fallback to user icon */}
+                    {staffMember.profile_image_url || staffMember.image ? (
+                      <img
+                        src={staffMember.profile_image_url || staffMember.image}
+                        alt={staffMember.name}
+                        className="w-24 h-24 rounded-full mx-auto mb-4 object-cover border-2 border-gray-100"
+                        onError={(e) => {
+                          // Hide broken image and show fallback
+                          e.target.style.display = 'none';
+                          e.target.nextSibling.style.display = 'flex';
+                        }}
+                      />
+                    ) : null}
+                    {/* Fallback user icon - shown when no image or image fails to load */}
+                    <div
+                      className={`w-24 h-24 rounded-full mx-auto mb-4 bg-gradient-to-br from-teal-100 to-teal-200 flex items-center justify-center border-2 border-teal-100 ${staffMember.profile_image_url || staffMember.image ? 'hidden' : ''}`}
+                    >
+                      <svg className="w-12 h-12 text-teal-600" fill="currentColor" viewBox="0 0 24 24">
+                        <path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/>
+                      </svg>
+                    </div>
+                    <h3 className="font-semibold text-gray-900 mb-1">{staffMember.name}</h3>
+                    <p className="text-sm text-gray-600 mb-2">{staffMember.experience}</p>
                     <p className="text-xs text-teal-600 mb-2">
-                      {staff.specialties?.join(', ') || 'General Services'}
+                      {staffMember.specialties?.join(', ') || 'General Services'}
                     </p>
                     <div className="flex items-center justify-center">
                       <StarIcon className="h-4 w-4 text-yellow-400 mr-1" />
-                      <span className="text-sm">{staff.rating}</span>
+                      <span className="text-sm">{staffMember.rating}</span>
                     </div>
                     <Link
                       href={`/salon/${salonId}/book`}
                       className="mt-3 px-4 py-2 text-sm border border-teal-600 text-teal-600 rounded-lg hover:bg-teal-50 transition-colors inline-block text-center"
                     >
-                      Book with {staff.name.split(' ')[0]}
+                      Book with {staffMember.name.split(' ')[0]}
                     </Link>
                   </div>
                 ))}

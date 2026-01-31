@@ -33,12 +33,12 @@ export default function TrendingSalons() {
     }
   ];
 
+  // Note: No image property means SalonCard will use its fallback (/s1.jpeg)
   const salonsByCategory = {
     trending: [
       {
         id: 101,
         name: "Glow Beauty Bar",
-        image: "/api/placeholder/280/180",
         rating: 4.8,
         reviewCount: 127,
         price: "₹₹₹",
@@ -53,7 +53,6 @@ export default function TrendingSalons() {
       {
         id: 102,
         name: "Urban Zen Spa",
-        image: "/api/placeholder/280/180",
         rating: 4.9,
         reviewCount: 89,
         price: "₹₹₹₹",
@@ -67,7 +66,6 @@ export default function TrendingSalons() {
       {
         id: 103,
         name: "Chic Hair Lounge",
-        image: "/api/placeholder/280/180",
         rating: 4.7,
         reviewCount: 156,
         price: "₹₹",
@@ -81,7 +79,6 @@ export default function TrendingSalons() {
       {
         id: 104,
         name: "Nail Artistry Studio",
-        image: "/api/placeholder/280/180",
         rating: 4.6,
         reviewCount: 93,
         price: "₹₹",
@@ -98,7 +95,6 @@ export default function TrendingSalons() {
       {
         id: 201,
         name: "Elite Hair Studio",
-        image: "/api/placeholder/280/180",
         rating: 4.8,
         reviewCount: 203,
         price: "₹₹₹",
@@ -112,7 +108,6 @@ export default function TrendingSalons() {
       {
         id: 202,
         name: "Bliss Day Spa",
-        image: "/api/placeholder/280/180",
         rating: 4.9,
         reviewCount: 178,
         price: "₹₹₹₹",
@@ -126,7 +121,6 @@ export default function TrendingSalons() {
       {
         id: 203,
         name: "Quick & Chic Salon",
-        image: "/api/placeholder/280/180",
         rating: 4.5,
         reviewCount: 245,
         price: "₹₹",
@@ -140,7 +134,6 @@ export default function TrendingSalons() {
       {
         id: 204,
         name: "Perfect Nails & More",
-        image: "/api/placeholder/280/180",
         rating: 4.7,
         reviewCount: 167,
         price: "₹₹",
@@ -156,7 +149,6 @@ export default function TrendingSalons() {
       {
         id: 301,
         name: "Platinum Beauty Salon",
-        image: "/api/placeholder/280/180",
         rating: 5.0,
         reviewCount: 87,
         price: "₹₹₹₹",
@@ -170,7 +162,6 @@ export default function TrendingSalons() {
       {
         id: 302,
         name: "Serenity Wellness Spa",
-        image: "/api/placeholder/280/180",
         rating: 4.9,
         reviewCount: 134,
         price: "₹₹₹",
@@ -184,7 +175,6 @@ export default function TrendingSalons() {
       {
         id: 303,
         name: "Artisan Hair Design",
-        image: "/api/placeholder/280/180",
         rating: 4.9,
         reviewCount: 112,
         price: "₹₹₹",
@@ -199,7 +189,6 @@ export default function TrendingSalons() {
       {
         id: 304,
         name: "Luxe Nail Boutique",
-        image: "/api/placeholder/280/180",
         rating: 4.8,
         reviewCount: 98,
         price: "₹₹₹",

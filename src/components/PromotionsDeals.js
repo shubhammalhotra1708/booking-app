@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { ChevronLeft, ChevronRight, Tag, Sparkles } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Tag, Sparkles, Gift, Heart, GraduationCap, Star } from 'lucide-react';
 
 export default function PromotionsDeals() {
   const [isVisible, setIsVisible] = useState(false);
@@ -16,7 +16,7 @@ export default function PromotionsDeals() {
       id: 1,
       title: '20% Off First Visit',
       description: 'New customers get 20% off their first appointment',
-      image: '/api/placeholder/400/200',
+      icon: Gift,
       validUntil: 'Valid until Dec 31',
       salonsCount: 45,
       gradient: 'from-red-400 to-pink-500',
@@ -27,7 +27,7 @@ export default function PromotionsDeals() {
       id: 2,
       title: 'Holiday Spa Package',
       description: 'Massage + Facial + Manicure combo deals',
-      image: '/api/placeholder/400/200',
+      icon: Sparkles,
       validUntil: 'Limited time offer',
       salonsCount: 28,
       gradient: 'from-emerald-400 to-teal-500',
@@ -38,7 +38,7 @@ export default function PromotionsDeals() {
       id: 3,
       title: 'Bridal Beauty Package',
       description: 'Complete bridal preparation services',
-      image: '/api/placeholder/400/200',
+      icon: Heart,
       validUntil: 'Book 30 days ahead',
       salonsCount: 18,
       gradient: 'from-purple-400 to-pink-500',
@@ -49,7 +49,7 @@ export default function PromotionsDeals() {
       id: 4,
       title: 'Student Discounts',
       description: '15% off with valid student ID',
-      image: '/api/placeholder/400/200',
+      icon: GraduationCap,
       validUntil: 'Year-round offer',
       salonsCount: 67,
       gradient: 'from-blue-400 to-indigo-500',
@@ -122,15 +122,11 @@ export default function PromotionsDeals() {
                         }}
                       >
                         <div className="relative bg-white rounded-2xl overflow-hidden shadow-lg hover:shadow-2xl transition-all duration-300 hover:scale-[1.02]">
-                          {/* Image with Gradient Overlay */}
-                          <div className="relative h-48">
-                            <img
-                              src={deal.image}
-                              alt={deal.title}
-                              className="w-full h-full object-cover"
-                            />
-                            <div className={`absolute inset-0 bg-gradient-to-br ${deal.gradient} opacity-80`}></div>
-                            
+                          {/* Gradient Background with Icon */}
+                          <div className={`relative h-48 bg-gradient-to-br ${deal.gradient} flex items-center justify-center`}>
+                            {/* Large decorative icon */}
+                            <deal.icon className="h-20 w-20 text-white/30" strokeWidth={1} />
+
                             {/* Badge */}
                             <div className="absolute top-4 left-4">
                               <span className={`${deal.badgeColor} text-white px-3 py-1 rounded-full text-xs font-bold shadow-lg`}>

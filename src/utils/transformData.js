@@ -94,7 +94,7 @@ export const transformStaffData = (apiStaff) => {
   return {
     id: apiStaff.id,
     name: apiStaff.name || 'Staff Member',
-    image: apiStaff.image || '/api/placeholder/150/150',
+    image: apiStaff.image || null, // Will use fallback icon in UI
     // New Supabase Storage field
     profile_image_url: apiStaff.profile_image_url || null,
     specialties: Array.isArray(specialties) ? specialties : ['General Services'],
@@ -181,7 +181,7 @@ export const transformCompleteShopDetails = (shop, services = [], staff = []) =>
     ...transformedShop,
     services: transformServicesData(services),
     staff: transformStaffDataArray(staff),
-    images: [transformedShop.image, '/api/placeholder/400/300', '/api/placeholder/400/300'],
+    images: transformedShop.image ? [transformedShop.image] : [], // Only use real images
     openingHours: {
       monday: "10:00 AM - 8:00 PM",
       tuesday: "10:00 AM - 8:00 PM",
