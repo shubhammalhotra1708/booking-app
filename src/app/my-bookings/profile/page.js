@@ -489,7 +489,7 @@ export default function ProfilePage() {
         </div>
 
         {/* Change Password Section */}
-        {!isAnonymous && !isEditing && (
+        {/* {!isAnonymous && !isEditing && (
           <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-xl font-semibold text-gray-900">Change Password</h2>
@@ -640,7 +640,7 @@ export default function ProfilePage() {
               </div>
             )}
           </div>
-        )}
+        )} */}
 
         {/* Help Text */}
         <div className="mt-6 bg-blue-50 border border-blue-200 rounded-lg p-4">
