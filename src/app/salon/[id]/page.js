@@ -18,6 +18,7 @@ import {
   CameraIcon
 } from '@heroicons/react/24/outline';
 import { HeartIcon as HeartSolidIcon } from '@heroicons/react/24/solid';
+import ReviewSection from '../../../components/ReviewSection';
 
 export default function SalonProfile() {
   const params = useParams();
@@ -511,6 +512,9 @@ export default function SalonProfile() {
                 ))}
               </div>
             </div>
+
+            {/* Reviews Section */}
+            <ReviewSection shopId={salonId} />
           </div>
 
           {/* Sidebar */}
