@@ -758,43 +758,22 @@ export async function ensureCustomerRecord(overrides = {}) {
     // For permanent accounts only - anonymous users should create new records
     if (guestMatch && !guestMatch.user_id) {
       if (!isAnonymous) {
-        // Permanent account - claim the guest record
+        // Permanent account - claim the guest record via RPC
+        // RPC bypasses RLS and allows claiming unclaimed customer records
         logger.debug('🔗 Attempting to claim unclaimed guest customer:', guestMatch.id);
         try {
-          // Try RPC first
-          const { error: claimErr } = await supa.rpc('claim_guest_customer', {
+          const { data: claimData, error: claimErr } = await supa.rpc('claim_guest_customer', {
             p_customer_id: guestMatch.id,
-            p_phone: phoneNorm,
-            p_email: emailCandidate,
-            p_name: overrides.name || user.user_metadata?.name || guestMatch.name || 'Customer'
+            p_user_id: user.id
           });
-          if (!claimErr) {
-            logger.debug('✅ Guest claimed via RPC');
-            const { data: claimed } = await supa
-              .from('Customer')
-              .select('*')
-              .eq('id', guestMatch.id)
-              .maybeSingle();
-            if (claimed) {
-              if (typeof window !== 'undefined') window.__ensuringCustomer = false;
-              return { success: true, data: claimed, error: null, claimedGuest: true };
-            }
-          } else {
+          if (!claimErr && claimData && claimData.length > 0) {
+            logger.debug('✅ Guest claimed via RPC:', claimData[0]);
+            if (typeof window !== 'undefined') window.__ensuringCustomer = false;
+            return { success: true, data: claimData[0], error: null, claimedGuest: true };
+          } else if (claimErr) {
             logger.warn('⚠️ RPC claim failed:', claimErr.message);
-            // Fallback direct update if RPC failed but RLS allows
-            const { data: updated, error: updErr } = await supa
-              .from('Customer')
-              .update({ user_id: user.id })
-              .eq('id', guestMatch.id)
-              .select('*')
-              .maybeSingle();
-            if (!updErr && updated) {
-              logger.debug('✅ Guest claimed via direct update');
-              if (typeof window !== 'undefined') window.__ensuringCustomer = false;
-              return { success: true, data: updated, error: null, claimedGuest: true };
-            } else {
-              logger.warn('⚠️ Direct update also failed:', updErr?.message);
-            }
+            // If RPC fails, we cannot claim - RLS blocks direct update on unclaimed records
+            // Fall through to create new record (will fail on email unique constraint if email exists)
           }
         } catch (e) {
           logger.warn('⚠️ Guest claim attempt exception:', e?.message || e);
