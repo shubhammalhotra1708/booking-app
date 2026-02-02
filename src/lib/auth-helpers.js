@@ -400,19 +400,12 @@ export async function sendOTP({ email, phone, name }) {
       return { success: false, error: 'Email or phone is required' };
     }
 
-    // For new users (not logged in), check if email/phone already exists
-    if (!currentUser || isAnonymous) {
-      const existingCheck = await checkExistingCustomer({ email, phone });
-
-      if (existingCheck.exists) {
-        return {
-          success: false,
-          error: existingCheck.message,
-          code: existingCheck.conflict === 'email' ? 'EMAIL_EXISTS' : 'PHONE_EXISTS',
-          conflict: existingCheck.conflict
-        };
-      }
-    }
+    // NOTE: We do NOT check if email exists here because signInWithOtp
+    // is designed to work for BOTH new and existing users:
+    // - New users: creates account and sends OTP
+    // - Existing users: sends OTP for sign-in
+    // - Walk-in customers (Customer record exists, no auth user): creates auth user and claims Customer record
+    // The checkExistingCustomer check was incorrectly blocking these valid use cases.
 
     // For anonymous users, use linkIdentity to upgrade session
     // For new/existing users, use signInWithOtp
