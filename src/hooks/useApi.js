@@ -40,25 +40,10 @@ export const useShops = (filters = {}) => {
           return;
         }
 
-        const shopsWithServices = [];
-        
-        // For each shop, fetch its services to get categories
-        for (const shop of shopsData.data || []) {
-          try {
-            const servicesResponse = await fetch(`/api/services?shop_id=${shop.id}`);
-            const servicesData = await servicesResponse.json();
-            
-            const services = servicesData.success ? servicesData.data || [] : [];
-            const transformedShop = transformShopData(shop);
-            shopsWithServices.push(transformedShop);
-          } catch (err) {
-            // If services fetch fails, still include the shop with basic data
-            const transformedShop = transformShopData(shop);
-            shopsWithServices.push(transformedShop);
-          }
-        }
-        
-        setShops(shopsWithServices);
+        // Transform all shops - no need to fetch services separately for listing
+        // Services are fetched when viewing individual shop details
+        const transformedShops = (shopsData.data || []).map(shop => transformShopData(shop));
+        setShops(transformedShops);
         
       } catch (err) {
         setError(err.message);
@@ -174,8 +159,6 @@ export const useShopDetails = (shopId) => {
         setLoading(true);
         setError(null);
 
-        console.log(`📡 Fetching shop details for ID: ${shopId}`);
-
         // Fetch shop details, services, staff, and products in parallel
         const [shopResponse, servicesResponse, staffResponse, productsResponse] = await Promise.all([
           fetch(`/api/shops?shop_id=${shopId}`),
@@ -191,33 +174,25 @@ export const useShopDetails = (shopId) => {
           productsResponse.json()
         ]);
 
-        console.log(`📦 Shop data response:`, shopData);
-
         if (shopData.success && shopData.data?.length > 0) {
           setShop(shopData.data[0]);
-          console.log(`✅ Shop loaded: ${shopData.data[0].name}`);
         } else {
-          console.error(`❌ Shop not found for ID: ${shopId}`);
           setError('Shop not found');
         }
 
         if (servicesData.success) {
           setServices(servicesData.data || []);
-          console.log(`✅ Loaded ${servicesData.data?.length || 0} services`);
         }
 
         if (staffData.success) {
           setStaff(staffData.data || []);
-          console.log(`✅ Loaded ${staffData.data?.length || 0} staff`);
         }
 
         if (productsData.success) {
           setProducts(productsData.data || []);
-          console.log(`✅ Loaded ${productsData.data?.length || 0} products`);
         }
 
       } catch (err) {
-        console.error(`❌ Error fetching shop details:`, err);
         setError(err.message);
       } finally {
         setLoading(false);
@@ -293,29 +268,35 @@ export const useSearch = () => {
       }
       
       // Add shops that have services matching the query
-      if (servicesData.success) {
+      // Use Promise.all to fetch all shops in parallel instead of sequentially
+      if (servicesData.success && servicesData.data?.length > 0) {
         const serviceShopIds = [...new Set(servicesData.data.map(service => service.shop_id))];
-        
-        for (const shopId of serviceShopIds) {
+
+        // Fetch all shops in parallel
+        const shopPromises = serviceShopIds.map(async (shopId) => {
           const shopParams = new URLSearchParams();
           shopParams.append('shop_id', shopId);
           if (location && location.trim()) {
             shopParams.append('city', location.trim());
           }
-          
+
           const shopResponse = await fetch(`/api/shops?${shopParams.toString()}`);
-          const shopData = await shopResponse.json();
-          
+          return shopResponse.json();
+        });
+
+        const shopResults = await Promise.all(shopPromises);
+
+        for (const shopData of shopResults) {
           if (shopData.success && shopData.data?.length > 0) {
             const shop = shopData.data[0];
             const existingShop = searchResults.find(s => s.id === shop.id);
-            
+
             // Additional location check for shops without city data
             let locationMatch = true;
             if (location && location.trim() && !shop.city) {
               locationMatch = shop.address?.toLowerCase().includes(location.toLowerCase());
             }
-            
+
             if (!existingShop && locationMatch) {
               searchResults.push(transformShopData(shop));
             }

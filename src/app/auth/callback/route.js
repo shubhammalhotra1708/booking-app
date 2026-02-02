@@ -59,8 +59,6 @@ export async function GET(request) {
       }
 
       if (data.session) {
-        console.log('✅ Email verified and session created for:', data.user?.email);
-        
         // Stamp customer role via API
         try {
           await fetch(`${requestUrl.origin}/api/auth/stamp-role`, {

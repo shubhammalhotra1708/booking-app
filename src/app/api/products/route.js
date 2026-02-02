@@ -23,8 +23,6 @@ export async function GET(request) {
     
     const supabase = await createClient();
 
-    console.log(`📦 Fetching products for shop_id: ${shopId}`);
-
     // Fetch only active products for the shop
     let query = supabase
       .from('Product')

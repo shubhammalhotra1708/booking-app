@@ -51,11 +51,6 @@ export default function BookingPage() {
           const servicesWithStaff = servicesResult.data.filter(s => (s.staff_count || 0) > 0);
           const realServices = servicesWithStaff.map(transformServiceData);
           setServices(realServices);
-          
-          // Log filtered services for debugging
-          if (servicesResult.data.length !== servicesWithStaff.length) {
-            console.log(`Filtered out ${servicesResult.data.length - servicesWithStaff.length} services without staff`);
-          }
         }
         
       } catch (err) {
