@@ -36,7 +36,7 @@ export async function GET(request) {
 
     const { data, error } = await query;
 
-    console.log(`📦 Products query result:`, { data, error });
+    // console.log(`📦 Products query result:`, { data, error });
 
     if (error) {
       console.error('Database error fetching products:', error);
