@@ -514,7 +514,7 @@ export default function SalonProfile() {
             </div>
 
             {/* Reviews Section */}
-            <ReviewSection shopId={salonId} />
+            <ReviewSection shopId={salonId} shopName={salon?.name} />
           </div>
 
           {/* Sidebar */}

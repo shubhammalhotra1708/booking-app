@@ -1,18 +1,22 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { Star } from 'lucide-react';
+import { useRouter } from 'next/navigation';
+import { Star, PenLine, LogIn } from 'lucide-react';
 
 /**
  * ReviewSection Component
  * Displays reviews for a shop with real API data
+ * Allows logged-in users to submit reviews
  *
  * Props:
  * - shopId: The shop ID to fetch reviews for
+ * - shopName: Shop name for display
  * - initialReviews: Optional pre-fetched reviews
  * - initialStats: Optional pre-fetched stats
  */
-export default function ReviewSection({ shopId, initialReviews = [], initialStats = null }) {
+export default function ReviewSection({ shopId, shopName = '', initialReviews = [], initialStats = null }) {
+  const router = useRouter();
   const [reviews, setReviews] = useState(initialReviews);
   const [stats, setStats] = useState(initialStats || {
     averageRating: 0,
@@ -24,6 +28,18 @@ export default function ReviewSection({ shopId, initialReviews = [], initialStat
   const [hasMore, setHasMore] = useState(true);
   const [offset, setOffset] = useState(0);
   const LIMIT = 10;
+
+  // Auth state
+  const [isLoggedIn, setIsLoggedIn] = useState(null); // null = checking, true/false = result
+
+  // Review form state
+  const [showReviewForm, setShowReviewForm] = useState(false);
+  const [reviewRating, setReviewRating] = useState(0);
+  const [reviewComment, setReviewComment] = useState('');
+  const [hoveredStar, setHoveredStar] = useState(0);
+  const [submitting, setSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState(null);
+  const [submitSuccess, setSubmitSuccess] = useState(false);
 
   // Fetch reviews from API
   const fetchReviews = useCallback(async (currentOffset = 0, append = false) => {
@@ -63,6 +79,24 @@ export default function ReviewSection({ shopId, initialReviews = [], initialStat
     }
   }, [shopId, initialReviews.length, fetchReviews]);
 
+  // Check auth status on mount
+  useEffect(() => {
+    async function checkAuth() {
+      try {
+        const res = await fetch('/api/user');
+        if (res.ok) {
+          const data = await res.json();
+          setIsLoggedIn(!!data.user);
+        } else {
+          setIsLoggedIn(false);
+        }
+      } catch {
+        setIsLoggedIn(false);
+      }
+    }
+    checkAuth();
+  }, []);
+
   // Load more reviews
   const handleLoadMore = async () => {
     const newOffset = offset + LIMIT;
@@ -91,6 +125,48 @@ export default function ReviewSection({ shopId, initialReviews = [], initialStat
     }));
   };
 
+  // Submit review handler
+  const handleSubmitReview = async (e) => {
+    e.preventDefault();
+    if (reviewRating === 0) {
+      setSubmitError('Please select a rating');
+      return;
+    }
+
+    setSubmitting(true);
+    setSubmitError(null);
+
+    try {
+      const res = await fetch('/api/reviews', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          shop_id: shopId,
+          shop_rating: reviewRating,
+          comment: reviewComment.trim() || null
+        })
+      });
+
+      const result = await res.json();
+
+      if (!result.success) {
+        setSubmitError(result.error || 'Failed to submit review');
+      } else {
+        setSubmitSuccess(true);
+        setShowReviewForm(false);
+        // Refresh reviews
+        fetchReviews(0);
+        // Reset form
+        setReviewRating(0);
+        setReviewComment('');
+      }
+    } catch (err) {
+      setSubmitError('Failed to submit review. Please try again.');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
   // Loading state
   if (loading) {
     return (
@@ -105,11 +181,138 @@ export default function ReviewSection({ shopId, initialReviews = [], initialStat
 
   const ratingDistribution = getRatingDistribution();
 
+  // Handle login redirect
+  const handleLoginRedirect = () => {
+    const returnUrl = typeof window !== 'undefined' ? window.location.pathname : '';
+    router.push(`/auth/login?redirect=${encodeURIComponent(returnUrl)}`);
+  };
+
   return (
     <div className="bg-white rounded-xl shadow-lg p-6">
       <div className="flex items-center justify-between mb-6">
         <h3 className="text-2xl font-bold text-gray-900">Reviews & Ratings</h3>
+        {!showReviewForm && !submitSuccess && (
+          isLoggedIn === null ? (
+            // Still checking auth
+            <div className="h-10 w-32 bg-gray-100 rounded-lg animate-pulse" />
+          ) : isLoggedIn ? (
+            // User is logged in - show Write a Review button
+            <button
+              onClick={() => setShowReviewForm(true)}
+              className="flex items-center gap-2 px-4 py-2 bg-teal-600 text-white rounded-lg hover:bg-teal-700 transition-colors text-sm font-medium"
+            >
+              <PenLine className="h-4 w-4" />
+              Write a Review
+            </button>
+          ) : (
+            // User is NOT logged in - show Login prompt
+            <button
+              onClick={handleLoginRedirect}
+              className="flex items-center gap-2 px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors text-sm font-medium border border-gray-300"
+            >
+              <LogIn className="h-4 w-4" />
+              Log in to Review
+            </button>
+          )
+        )}
       </div>
+
+      {/* Success message */}
+      {submitSuccess && (
+        <div className="mb-6 p-4 bg-green-50 border border-green-200 rounded-lg text-center">
+          <p className="text-green-700 font-medium">Thank you for your review! 🎉</p>
+        </div>
+      )}
+
+      {/* Review Form */}
+      {showReviewForm && (
+        <div className="mb-8 p-4 bg-gray-50 rounded-lg border">
+          <h4 className="font-semibold text-gray-900 mb-4">
+            Share your experience{shopName ? ` at ${shopName}` : ''}
+          </h4>
+          <form onSubmit={handleSubmitReview} className="space-y-4">
+            {/* Star Rating */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Your Rating
+              </label>
+              <div className="flex gap-1">
+                {[1, 2, 3, 4, 5].map((star) => (
+                  <button
+                    key={star}
+                    type="button"
+                    onClick={() => setReviewRating(star)}
+                    onMouseEnter={() => setHoveredStar(star)}
+                    onMouseLeave={() => setHoveredStar(0)}
+                    className="p-1 transition-transform hover:scale-110"
+                  >
+                    <Star
+                      className={`h-8 w-8 ${
+                        (hoveredStar || reviewRating) >= star
+                          ? 'text-yellow-400 fill-current'
+                          : 'text-gray-300'
+                      }`}
+                    />
+                  </button>
+                ))}
+              </div>
+              <p className="text-xs text-gray-500 mt-1">
+                {reviewRating === 0 ? 'Tap to rate' :
+                 reviewRating === 1 ? 'Poor' :
+                 reviewRating === 2 ? 'Fair' :
+                 reviewRating === 3 ? 'Good' :
+                 reviewRating === 4 ? 'Very Good' : 'Excellent'}
+              </p>
+            </div>
+
+            {/* Comment */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Your Review (optional)
+              </label>
+              <textarea
+                value={reviewComment}
+                onChange={(e) => setReviewComment(e.target.value)}
+                placeholder="Tell others about your experience..."
+                rows={3}
+                maxLength={500}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-transparent resize-none text-gray-900"
+              />
+              <p className="text-xs text-gray-500 text-right">{reviewComment.length}/500</p>
+            </div>
+
+            {/* Error */}
+            {submitError && (
+              <div className="p-3 bg-red-50 text-red-600 text-sm rounded-lg">
+                {submitError}
+              </div>
+            )}
+
+            {/* Buttons */}
+            <div className="flex gap-3">
+              <button
+                type="submit"
+                disabled={submitting || reviewRating === 0}
+                className="flex-1 py-2 bg-teal-600 text-white rounded-lg hover:bg-teal-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors font-medium"
+              >
+                {submitting ? 'Submitting...' : 'Submit Review'}
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowReviewForm(false);
+                  setReviewRating(0);
+                  setReviewComment('');
+                  setSubmitError(null);
+                }}
+                className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
+              >
+                Cancel
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
 
       {/* Overall Rating Summary */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-8">
