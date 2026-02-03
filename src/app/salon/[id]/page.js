@@ -8,17 +8,21 @@ import Navbar from '../../../components/Navbar';
 import { useShopDetails } from '../../../hooks/useApi';
 import { transformShopData, transformServiceData, transformStaffData, transformProductData } from '../../../utils/transformData';
 import { ShoppingBagIcon } from '@heroicons/react/24/outline';
-import { 
-  StarIcon, 
-  MapPinIcon, 
-  PhoneIcon, 
+import {
+  StarIcon,
+  MapPinIcon,
+  PhoneIcon,
   ClockIcon,
   HeartIcon,
   ShareIcon,
-  CameraIcon
+  CameraIcon,
+  ChevronDownIcon
 } from '@heroicons/react/24/outline';
 import { HeartIcon as HeartSolidIcon } from '@heroicons/react/24/solid';
 import ReviewSection from '../../../components/ReviewSection';
+
+// Custom category order - same as admin app
+const CATEGORY_ORDER = ['Hair', 'Facial', 'Cleanup', 'Skin', 'Nails', 'Massage', 'Spa', 'Other'];
 
 export default function SalonProfile() {
   const params = useParams();
@@ -43,6 +47,7 @@ export default function SalonProfile() {
   const [isFavorited, setIsFavorited] = useState(false);
   const [selectedImageIndex, setSelectedImageIndex] = useState(0);
   const [genderFilter, setGenderFilter] = useState('ALL');
+  const [expandedCategories, setExpandedCategories] = useState({});
 
   // Use API data
   let salon, services, staff, products;
@@ -97,6 +102,56 @@ export default function SalonProfile() {
     
     return images;
   }, [salon?.banner_url, salon?.gallery_urls, salon?.logo_url, salon?.images, salon?.image]);
+
+  // Group services by category
+  const servicesByCategory = useMemo(() => {
+    if (!salon?.services) return {};
+
+    // Filter by gender first
+    const filteredServices = salon.services.filter((service) => {
+      if (genderFilter === 'ALL') return true;
+      const serviceGender = service.targetgender?.[0] || service.targetGender?.[0];
+      return serviceGender === genderFilter || serviceGender === 'ALL';
+    });
+
+    // Group by category
+    const grouped = {};
+    filteredServices.forEach(service => {
+      const category = service.category || 'Other';
+      if (!grouped[category]) {
+        grouped[category] = [];
+      }
+      grouped[category].push(service);
+    });
+
+    return grouped;
+  }, [salon?.services, genderFilter]);
+
+  // Get sorted category names using custom order
+  const sortedCategories = useMemo(() => {
+    const categories = Object.keys(servicesByCategory);
+    return categories.sort((a, b) => {
+      const indexA = CATEGORY_ORDER.indexOf(a);
+      const indexB = CATEGORY_ORDER.indexOf(b);
+
+      // If both in order, sort by index
+      if (indexA !== -1 && indexB !== -1) return indexA - indexB;
+      // If only A in order, A comes first
+      if (indexA !== -1) return -1;
+      // If only B in order, B comes first
+      if (indexB !== -1) return 1;
+      // If neither in order, alphabetical
+      return a.localeCompare(b);
+    });
+  }, [servicesByCategory]);
+
+  // Toggle category expansion
+  const toggleCategory = (category) => {
+    setExpandedCategories(prev => ({
+      ...prev,
+      [category]: !prev[category]
+    }));
+  };
 
   // Loading state
   if (loading) {
@@ -339,50 +394,82 @@ export default function SalonProfile() {
                 </div>
               </div>
               
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
-                {salon.services?.filter((service) => {
-                  // Filter by gender
-                  if (genderFilter === 'ALL') return true;
-                  const serviceGender = service.targetgender?.[0] || service.targetGender?.[0];
-                  return serviceGender === genderFilter || serviceGender === 'ALL';
-                }).map((service) => (
-                  <div key={service.id} className="border border-gray-200 rounded-lg p-3 sm:p-3 sm:p-4">
-                    {service.image_url && (
-                      <img
-                        src={service.image_url}
-                        alt={service.name}
-                        className="w-full h-24 sm:h-32 object-cover rounded-lg mb-2 sm:mb-3"
-                        onError={(e) => { 
-                          e.target.style.display = 'none'; 
-                        }}
-                      />
-                    )}
-                    <div className="flex justify-between items-start mb-1.5 sm:mb-2">
-                      <div className="flex-1">
-                        <h3 className="text-sm sm:text-base font-semibold text-gray-900 mb-1">{service.name}</h3>
-                        {/* Gender Badge */}
-                        {(() => {
-                          const gender = service.targetgender?.[0] || service.targetGender?.[0] || 'ALL';
-                          if (gender === 'MALE') {
-                            return <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-50 text-blue-700">Men</span>;
-                          } else if (gender === 'FEMALE') {
-                            return <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-pink-50 text-pink-700">Women</span>;
-                          } else {
-                            return <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-700">Unisex</span>;
-                          }
-                        })()}
+              {/* Category-based Services Display */}
+              <div className="space-y-3">
+                {sortedCategories.length === 0 ? (
+                  <p className="text-gray-500 text-center py-4">No services available</p>
+                ) : (
+                  sortedCategories.map(category => {
+                    const categoryServices = servicesByCategory[category];
+                    const isExpanded = expandedCategories[category] !== false; // Default to expanded
+
+                    return (
+                      <div key={category} className="border border-gray-200 rounded-lg overflow-hidden">
+                        {/* Category Header - Clickable */}
+                        <button
+                          onClick={() => toggleCategory(category)}
+                          className="w-full flex items-center justify-between p-3 sm:p-4 bg-gray-50 hover:bg-gray-100 transition-colors"
+                        >
+                          <div className="flex items-center gap-2">
+                            <h3 className="text-sm sm:text-base font-semibold text-gray-900">{category}</h3>
+                            <span className="px-2 py-0.5 text-xs font-medium bg-teal-100 text-teal-700 rounded-full">
+                              {categoryServices.length}
+                            </span>
+                          </div>
+                          <ChevronDownIcon
+                            className={`h-5 w-5 text-gray-500 transition-transform duration-200 ${
+                              isExpanded ? 'rotate-180' : ''
+                            }`}
+                          />
+                        </button>
+
+                        {/* Category Services - Collapsible */}
+                        {isExpanded && (
+                          <div className="p-3 sm:p-4 grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
+                            {categoryServices.map((service) => (
+                              <div key={service.id} className="border border-gray-200 rounded-lg p-3 sm:p-4">
+                                {service.image_url && (
+                                  <img
+                                    src={service.image_url}
+                                    alt={service.name}
+                                    className="w-full h-24 sm:h-32 object-cover rounded-lg mb-2 sm:mb-3"
+                                    onError={(e) => {
+                                      e.target.style.display = 'none';
+                                    }}
+                                  />
+                                )}
+                                <div className="flex justify-between items-start mb-1.5 sm:mb-2">
+                                  <div className="flex-1">
+                                    <h4 className="text-sm sm:text-base font-semibold text-gray-900 mb-1">{service.name}</h4>
+                                    {/* Gender Badge */}
+                                    {(() => {
+                                      const gender = service.targetgender?.[0] || service.targetGender?.[0] || 'ALL';
+                                      if (gender === 'MALE') {
+                                        return <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-50 text-blue-700">Men</span>;
+                                      } else if (gender === 'FEMALE') {
+                                        return <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-pink-50 text-pink-700">Women</span>;
+                                      } else {
+                                        return <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-700">Unisex</span>;
+                                      }
+                                    })()}
+                                  </div>
+                                  <span className="text-base sm:text-lg font-bold text-teal-600">₹{service.price}</span>
+                                </div>
+                                <p className="text-xs sm:text-sm text-gray-600 mb-2 sm:mb-3">{service.duration}</p>
+                                <Link
+                                  href={`/salon/${salonId}/book?service=${service.id}`}
+                                  className="w-full py-2 border border-teal-600 text-teal-600 rounded-lg hover:bg-teal-50 transition-colors inline-block text-center text-xs sm:text-sm font-medium"
+                                >
+                                  Book Now
+                                </Link>
+                              </div>
+                            ))}
+                          </div>
+                        )}
                       </div>
-                      <span className="text-base sm:text-lg font-bold text-teal-600">₹{service.price}</span>
-                    </div>
-                    <p className="text-xs sm:text-sm text-gray-600 mb-2 sm:mb-3">{service.duration}</p>
-                    <Link
-                      href={`/salon/${salonId}/book?service=${service.id}`}
-                      className="w-full py-2 border border-teal-600 text-teal-600 rounded-lg hover:bg-teal-50 transition-colors inline-block text-center text-xs sm:text-sm font-medium"
-                    >
-                      Book Now
-                    </Link>
-                  </div>
-                ))}
+                    );
+                  })
+                )}
               </div>
             </div>
 

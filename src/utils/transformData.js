@@ -62,13 +62,15 @@ export const transformShopData = (apiShop) => {
 
 export const transformServiceData = (apiService) => {
   if (!apiService) return null;
-  
   return {
     id: apiService.id,
     name: apiService.name || 'Unnamed Service',
     price: apiService.price || 0,
     duration: apiService.duration ? `${apiService.duration} min` : '30 min',
     description: apiService.description || 'No description available',
+    category: apiService.category || 'Other',
+    targetgender: apiService.targetgender || ['ALL'],
+    targetGender: apiService.targetgender || ['ALL'],
     // New Supabase Storage field
     image_url: apiService.image_url || null
   };
