@@ -31,9 +31,9 @@ export default function Home() {
         <div className="max-w-7xl mx-auto px-3 sm:px-4 lg:px-8">
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 sm:gap-8">
             <div>
-              <h3 className="text-xl sm:text-2xl font-bold text-teal-400 mb-3 sm:mb-4">BeautyBook</h3>
+              <h3 className="text-xl sm:text-2xl font-bold text-teal-400 mb-3 sm:mb-4">EzBook</h3>
               <p className="text-gray-300 text-xs sm:text-sm">
-                Find and book the best beauty services near you. Trusted by thousands across India.
+                Find and book the best beauty services near you. Trusted across India.
               </p>
             </div>
             <div>
@@ -65,7 +65,7 @@ export default function Home() {
             </div>
           </div>
           <div className="border-t border-gray-800 mt-6 sm:mt-8 pt-6 sm:pt-8 text-center text-gray-400 text-xs sm:text-sm">
-            <p>&copy; 2025 BeautyBook. All rights reserved.</p>
+            <p>&copy; 2026 BeautyBook. All rights reserved.</p>
           </div>
         </div>
       </footer>
