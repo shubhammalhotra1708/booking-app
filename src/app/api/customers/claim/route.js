@@ -3,6 +3,7 @@ import { createClient } from '@/utils/supabase/server';
 import { createErrorResponse, createSuccessResponse, ERROR_CODES } from '@/lib/validation';
 import { getCorsHeaders } from '@/lib/cors';
 import { normalizePhone } from '@/lib/identity';
+import { logger } from '@/lib/logger';
 
 // OPTIONS preflight
 export async function OPTIONS(request) {

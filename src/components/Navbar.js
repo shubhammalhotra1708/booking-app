@@ -104,7 +104,7 @@ export default function Navbar({ showCompactSearch = false }) {
                       value={searchQuery}
                       onChange={(e) => setSearchQuery(e.target.value)}
                       onKeyPress={handleKeyPress}
-                      className="flex-1 ml-2 text-sm border-0 focus:ring-0 focus:outline-none text-gray-700 bg-transparent"
+                      className="flex-1 ml-2 text-sm border-0 focus:ring-0 focus:outline-none text-gray-900 bg-transparent"
                     />
                   </div>
                 </div>

@@ -1051,9 +1051,9 @@ function BookingFlowInner() {
                     }
                   }}
                   disabled={loggedIn}
-                  className={`w-full p-3 border rounded-lg focus:ring-2 focus:border-transparent placeholder:text-gray-300 ${
-                    validationErrors.phone 
-                      ? 'border-red-300 focus:ring-red-500' 
+                  className={`w-full p-3 border rounded-lg focus:ring-2 focus:border-transparent placeholder:text-gray-300 text-gray-900 ${
+                    validationErrors.phone
+                      ? 'border-red-300 focus:ring-red-500'
                       : 'border-gray-300 focus:ring-blue-500'
                   } ${loggedIn ? 'bg-gray-100 cursor-not-allowed' : ''}`}
                   placeholder="Enter your phone number"

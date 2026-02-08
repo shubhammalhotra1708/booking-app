@@ -111,7 +111,7 @@ export default function SimpleClientAuth({ onAuth, bookingData }) {
                 type="text"
                 value={formData.name}
                 onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
                 placeholder="Enter your name"
                 required={!isLogin}
               />
@@ -133,11 +133,11 @@ export default function SimpleClientAuth({ onAuth, bookingData }) {
             <input
               type={authMode === 'phone' ? 'tel' : 'email'}
               value={authMode === 'phone' ? formData.phone : formData.email}
-              onChange={(e) => setFormData({ 
-                ...formData, 
-                [authMode]: e.target.value 
+              onChange={(e) => setFormData({
+                ...formData,
+                [authMode]: e.target.value
               })}
-              className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
               placeholder={authMode === 'phone' ? '+1 (555) 123-4567' : 'you@example.com'}
               required
             />
@@ -155,7 +155,7 @@ export default function SimpleClientAuth({ onAuth, bookingData }) {
               type="password"
               value={formData.password}
               onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-              className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
               placeholder="Enter password"
               required
               minLength={4}
